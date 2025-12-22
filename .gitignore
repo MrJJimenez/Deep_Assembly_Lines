@@ -1,1 +1,8 @@
 .venv
+
+# Model weights and large files
+*.pt
+*.pth
+*.ckpt
+*.weights
+YOLOv11 finetuning/runs/

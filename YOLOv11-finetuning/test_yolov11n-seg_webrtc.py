@@ -55,7 +55,7 @@ def draw_masks_and_scores(image, masks_with_scores, classes):
             label_text = f"{label_text} {score:.2f}"
 
             font = cv2.FONT_HERSHEY_SIMPLEX
-            font_scale = 0.4
+            font_scale = 0.2
             font_thickness = 1
             text_size = cv2.getTextSize(label_text, font, font_scale, font_thickness)[0]
 
@@ -176,10 +176,6 @@ class YOLOVideoStreamTrack(VideoStreamTrack):
                     verbose=False,
                     device=self.device,
                     half=False,  # Disable FP16 on retry
-                    conf=0.35,
-                    iou=0.45,
-                    max_det=20,
-                    imgsz=max(self.target_width, self.target_height)
                 )
             else:
                 raise
@@ -365,7 +361,7 @@ def main():
     print(f"{'='*60}\n")
     
     # Choose model: prefer TensorRT engine if present
-    engine_path = os.path.join('runs', 'segment', 'yolov11n_seg_custom', 'weights', 'best.engine')
+    engine_path = os.path.join('runs', 'segment', 'yolov11n_seg_custom', 'weights', 'best.pt')
     pt_path = os.path.join('runs', 'segment', 'yolov11n_seg_custom', 'weights', 'best.pt')
     if os.path.exists(engine_path):
         model_path = engine_path

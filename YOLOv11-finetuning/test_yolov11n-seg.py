@@ -38,7 +38,7 @@ def draw_rect_boxes_and_labels(image, boxes, classes):
             label = classes[class_id] if class_id < len(classes) else f"Unknown Class {class_id}"
             label_with_score = f"{label} {confidence:.2f}" # Append confidence score
             font = cv2.FONT_HERSHEY_SIMPLEX
-            font_scale = 0.4
+            font_scale = 0.2
             font_thickness = 1
             text_size = cv2.getTextSize(label_with_score, font, font_scale, font_thickness)[0]
 
@@ -106,11 +106,12 @@ while cap.isOpened():
             fps = 1.0 / max(current_time - prev_time, 1e-6)
         prev_time = current_time
 
-        img_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        frame_h, frame_w = img_rgb.shape[:2]
-       
+        #img_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        img_rgb = frame.copy()
+        #frame_h, frame_w = img_rgb.shape[:2]
+        
         # Run inference
-        results = model(img_rgb, verbose=False, device=DEVICE, imgsz=(frame_h, frame_w))
+        results = model(img_rgb, verbose=False, device=DEVICE)
 
         # Collect all detected boxes for this frame
         all_detected_boxes = []
@@ -121,8 +122,7 @@ while cap.isOpened():
         # Draw annotated frame
         img_with_predictions = draw_rect_boxes_and_labels(img_rgb.copy(), all_detected_boxes, CLASSES)
         
-        # Convert back to BGR for cv2.imshow
-        img_display = cv2.cvtColor(img_with_predictions, cv2.COLOR_RGB2BGR)
+        img_display = img_with_predictions.copy()
         
         # Add FPS text
         cv2.putText(img_display, f"FPS: {fps:.1f}", (10, 30), 

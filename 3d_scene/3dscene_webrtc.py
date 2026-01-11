@@ -317,7 +317,7 @@ def init_sync_manager():
 
 async def index(request):
     """Serve HTML page."""
-    html_path = os.path.join(os.path.dirname(__file__), "webrtc_client.html")
+    html_path = os.path.join(os.path.dirname(__file__), "web_interface.html")
     with open(html_path, "r") as f:
         content = f.read()
     return web.Response(content_type="text/html", text=content)

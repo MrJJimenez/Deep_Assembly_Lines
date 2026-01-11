@@ -327,11 +327,23 @@ def main():
     else:
         print("WARNING: CUDA not available, using CPU")
     
-    # Load model (prefer TensorRT engine)
+    # Load model (prefer TensorRT engine, but use .pt if on MacOS with MPS)
     engine_path = os.path.join('runs', 'segment', 'yolov11n_seg_custom', 'weights', 'best.engine')
     pt_path = os.path.join('runs', 'segment', 'yolov11n_seg_custom', 'weights', 'best.pt')
+
+    import platform
+    def is_mps():
+        try:
+            import torch
+            return torch.backends.mps.is_available()
+        except Exception:
+            return False
     
-    model_path = engine_path if os.path.exists(engine_path) else pt_path
+    # Use .pt if on MacOS with MPS, else prefer engine if available
+    if platform.system() == 'Darwin' and is_mps():
+        model_path = pt_path
+    else:
+        model_path = engine_path if os.path.exists(engine_path) else pt_path
     print(f"Model: {model_path}")
     
     model = YOLO(model_path)

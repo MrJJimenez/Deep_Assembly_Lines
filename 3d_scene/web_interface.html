@@ -564,35 +564,6 @@
         directionalLight.position.set(5, 10, 5);
         scene.add(directionalLight);
 
-        // Grid helper (3m x 3m grid to match camera setup scale)
-        const gridHelper = new THREE.GridHelper(3, 15, 0x888888, 0xcccccc);
-        scene.add(gridHelper);
-
-        // Axis helper at origin
-        const axesHelper = new THREE.AxesHelper(0.5);
-        scene.add(axesHelper);
-
-        // Add origin marker
-        const originGeometry = new THREE.SphereGeometry(0.03, 16, 16);
-        const originMaterial = new THREE.MeshBasicMaterial({ color: 0x333333 });
-        const originMarker = new THREE.Mesh(originGeometry, originMaterial);
-        scene.add(originMarker);
-
-        // Add workspace box (represents the area cameras are viewing)
-        const workspaceGeometry = new THREE.BoxGeometry(0.4, 0.1, 0.3);
-        const workspaceEdges = new THREE.EdgesGeometry(workspaceGeometry);
-        const workspaceMaterial = new THREE.LineBasicMaterial({
-          color: 0x00ff88,
-          opacity: 0.5,
-          transparent: true,
-        });
-        const workspaceBox = new THREE.LineSegments(
-          workspaceEdges,
-          workspaceMaterial
-        );
-        workspaceBox.position.set(0, 0.05, 0);
-        scene.add(workspaceBox);
-
         // Handle resize
         window.addEventListener("resize", onWindowResize);
 

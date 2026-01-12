@@ -14,6 +14,9 @@ pip3 install numpy==1.26.4 --force-reinstall --index-url https://pypi.org/simple
 
 # Then install other dependencies
 pip3 install -r requirements_webrtc.txt
+
+# only with  conda
+python -m pip install -r requirements_webrtc.txt
 ```
 
 ### Step 2: Enable Maximum Performance (Optional but Recommended)

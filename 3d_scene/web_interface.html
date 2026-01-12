@@ -433,14 +433,6 @@
         <span class="control-label">Plane Scale</span>
         <span class="control-value" id="planeScale">0.3m</span>
       </div>
-      <div class="control-row">
-        <span class="control-label">Look at Origin</span>
-        <input
-          type="checkbox"
-          id="lookAtOrigin"
-          style="width: 18px; height: 18px; cursor: pointer"
-        />
-      </div>
       <div class="button-group">
         <button class="btn btn-primary" id="startBtn">Start Streams</button>
         <button class="btn btn-secondary" id="resetBtn">Reset View</button>
@@ -519,7 +511,6 @@
       const tooltip = document.getElementById("tooltip");
       const tooltipTitle = document.getElementById("tooltipTitle");
       const tooltipContent = document.getElementById("tooltipContent");
-      const lookAtOriginCb = document.getElementById("lookAtOrigin");
       const reloadCamsBtn = document.getElementById("reloadCamsBtn");
 
       // Initialize Three.js scene
@@ -616,7 +607,8 @@
       async function loadGLBScene() {
         const loader = new GLTFLoader();
         const glbPath =
-          "videos/VGGT_demo/calib_glbscene_48.1_All_maskbFalse_maskwFalse_camTrue_skyFalse_predDepthmap_and_Camera_Branch.glb";
+          "videos/VGGT_demo/calib_glbscene_24.2_All_maskbFalse_maskwFalse_camTrue_skyFalse_predDepthmap_and_Camera_Branch.glb";
+        //"videos/VGGT_demo/calib_glbscene_48.1_All_maskbFalse_maskwFalse_camTrue_skyFalse_predDepthmap_and_Camera_Branch.glb";
         //"videos/VGGT_demo/glbscene_97.3_All_maskbFalse_maskwFalse_camTrue_skyFalse_predDepthmap_and_Camera_Branch.glb";
         //"videos/VGGT_demo/glbscene_48.1_All_maskbFalse_maskwFalse_camTrue_skyFalse_predDepthmap_and_Camera_Branch.glb";
         // "/videos/VGGT_demo/glbscene_50_All_maskbFalse_maskwFalse_camTrue_skyFalse_predDepthmap_and_Camera_Branch.glb";
@@ -862,7 +854,7 @@
       }
 
       // Position camera in scene based on extrinsics
-      function positionCamera(cameraId, plane, frustum, lookAtOrigin = false) {
+      function positionCamera(cameraId, plane, frustum) {
         const calibration = calibrationData[cameraId];
         if (!calibration || !calibration.extrinsics) {
           console.warn(`No extrinsics for camera ${cameraId}`);
@@ -889,38 +881,29 @@
           -t[2] // Flip Z
         );
 
-        let quaternion = new THREE.Quaternion();
-
-        if (lookAtOrigin) {
-          // Make camera look at origin (workspace center)
-          const tempObj = new THREE.Object3D();
-          tempObj.position.copy(position);
-          tempObj.lookAt(new THREE.Vector3(0, 0, 0));
-          quaternion.copy(tempObj.quaternion);
-        } else {
-          // Use rotation from extrinsics
-          // Convert rotation: R' = F * R * F where F = diag(1,-1,-1)
-          const rotMatrix = new THREE.Matrix4();
-          rotMatrix.set(
-            R[0][0],
-            -R[0][1],
-            -R[0][2],
-            0,
-            -R[1][0],
-            R[1][1],
-            R[1][2],
-            0,
-            -R[2][0],
-            R[2][1],
-            R[2][2],
-            0,
-            0,
-            0,
-            0,
-            1
-          );
-          quaternion.setFromRotationMatrix(rotMatrix);
-        }
+        // Use rotation from extrinsics
+        // Convert rotation: R' = F * R * F where F = diag(1,-1,-1)
+        const rotMatrix = new THREE.Matrix4();
+        rotMatrix.set(
+          R[0][0],
+          -R[0][1],
+          -R[0][2],
+          0,
+          -R[1][0],
+          R[1][1],
+          R[1][2],
+          0,
+          -R[2][0],
+          R[2][1],
+          R[2][2],
+          0,
+          0,
+          0,
+          0,
+          1
+        );
+        const quaternion = new THREE.Quaternion();
+        quaternion.setFromRotationMatrix(rotMatrix);
 
         // Position the frustum at camera location
         frustum.position.copy(position);
@@ -942,17 +925,15 @@
 
       // Reload all camera positions with current settings
       function reloadCameraPositions() {
-        const lookAtOrigin = lookAtOriginCb.checked;
-
         availableCameras.forEach((cameraId) => {
           const plane = cameraPlanes[cameraId];
           const frustum = cameraFrustums[cameraId];
           if (plane && frustum) {
-            positionCamera(cameraId, plane, frustum, lookAtOrigin);
+            positionCamera(cameraId, plane, frustum);
           }
         });
 
-        console.log(`Reloaded cameras: lookAtOrigin=${lookAtOrigin}`);
+        console.log("Reloaded camera positions");
       }
 
       // Create UI for camera list
@@ -1192,8 +1173,7 @@
 
         resetBtn.addEventListener("click", resetView);
 
-        // Toggle event listener for camera positioning
-        lookAtOriginCb.addEventListener("change", reloadCameraPositions);
+        // Button event listener for camera repositioning
         reloadCamsBtn.addEventListener("click", reloadCameraPositions);
 
         // Hide loading overlay

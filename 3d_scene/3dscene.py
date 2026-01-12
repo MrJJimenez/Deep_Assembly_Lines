@@ -31,8 +31,30 @@ CLASS_COLORS = np.array([
 # Global state
 calibration_data = {}
 yolo_model = None
+yolo_device = "cpu"  # Will be set to 'mps', 'cuda', or 'cpu'
 sync_manager = None
 streaming_active = False  # Controls whether frame processing is active
+
+
+def get_best_device():
+    """Detect the best available device for inference (MPS > CUDA > CPU)."""
+    try:
+        import torch
+        if torch.backends.mps.is_available() and torch.backends.mps.is_built():
+            print("[Device] MPS (Apple Silicon GPU) available")
+            return "mps"
+        elif torch.cuda.is_available():
+            print(f"[Device] CUDA available: {torch.cuda.get_device_name(0)}")
+            return "cuda"
+        else:
+            print("[Device] Using CPU")
+            return "cpu"
+    except ImportError:
+        print("[Device] PyTorch not available, using CPU")
+        return "cpu"
+    except Exception as e:
+        print(f"[Device] Error detecting device: {e}, using CPU")
+        return "cpu"
 
 
 class SyncedVideoManager:
@@ -50,6 +72,7 @@ class SyncedVideoManager:
         # YOLO state
         self.yolo_model = None
         self.yolo_camera_id = None
+        self.yolo_device = "cpu"
         self.inference_interval = 2
         self.inference_counter = 0
         self.cached_yolo_results = None
@@ -89,12 +112,13 @@ class SyncedVideoManager:
         
         print(f"[Camera {camera_id}] Loaded: {video_path} ({total_frames} frames @ {fps}fps)")
     
-    def set_yolo_model(self, model, camera_id):
+    def set_yolo_model(self, model, camera_id, device="cpu"):
         """Set YOLO model for a specific camera."""
         self.yolo_model = model
         self.yolo_camera_id = camera_id
+        self.yolo_device = device
         self.yolo_overlay = np.zeros((self.target_height, self.target_width, 3), dtype=np.uint8)
-        print(f"[YOLO] Enabled on camera {camera_id}")
+        print(f"[YOLO] Enabled on camera {camera_id} (device: {device})")
     
     def _draw_yolo_predictions(self, frame, results):
         """Draw YOLO predictions on frame."""
@@ -203,7 +227,8 @@ class SyncedVideoManager:
                                 conf=0.35,
                                 iou=0.45,
                                 max_det=20,
-                                imgsz=640
+                                imgsz=640,
+                                device=self.yolo_device
                             )
                             self.cached_yolo_results = results
                         except Exception as e:
@@ -269,11 +294,14 @@ async def frame_update_loop():
 
 
 def load_yolo_model():
-    """Load YOLO model."""
-    global yolo_model
+    """Load YOLO model with best available device (MPS/CUDA/CPU)."""
+    global yolo_model, yolo_device
     
     try:
         from ultralytics import YOLO
+        
+        # Detect best device
+        yolo_device = get_best_device()
         
         pt_path = os.path.join('yolov11_finetuned', 'runs', 'segment', 
                                'yolov11n_seg_custom', 'weights', 'best.pt')
@@ -282,9 +310,10 @@ def load_yolo_model():
             print(f"[YOLO] Loading model: {pt_path}")
             yolo_model = YOLO(pt_path)
             
-            print("[YOLO] Warming up...")
-            _ = yolo_model(np.zeros((320, 320, 3), dtype=np.uint8), verbose=False)
-            print("[YOLO] Model ready")
+            print(f"[YOLO] Warming up on {yolo_device}...")
+            _ = yolo_model(np.zeros((320, 320, 3), dtype=np.uint8), 
+                          verbose=False, device=yolo_device)
+            print(f"[YOLO] Model ready on {yolo_device}")
             return yolo_model
         else:
             print(f"[YOLO] Model not found: {pt_path}")
@@ -370,7 +399,7 @@ def init_sync_manager():
     
     # Set YOLO model on designated camera
     if yolo_model is not None:
-        sync_manager.set_yolo_model(yolo_model, YOLO_CAMERA_ID)
+        sync_manager.set_yolo_model(yolo_model, YOLO_CAMERA_ID, yolo_device)
     
     print(f"[SyncManager] Initialized with {len(sync_manager.cameras)} cameras, synced to {sync_manager.total_frames} frames")
 
@@ -502,7 +531,7 @@ async def run_server(host="0.0.0.0", port=8080):
     site = web.TCPSite(runner, host, port)
     await site.start()
     
-    yolo_status = "enabled" if yolo_model else "disabled"
+    yolo_status = f"enabled on {yolo_device}" if yolo_model else "disabled"
     print(f"\n{'='*60}")
     print(f"  3D Scene Multi-Camera Server (Synchronized)")
     print(f"{'='*60}")

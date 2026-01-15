@@ -9,7 +9,7 @@ import time
 import threading
 
 # Camera recording directory
-RECORDING_DIR = "data/recording_7"
+RECORDING_DIR = "data/recording_3"
 CALIBRATION_FILE = "data/cams_calibrations.yml"
 
 # Camera to run YOLO on

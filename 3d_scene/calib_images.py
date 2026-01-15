@@ -65,7 +65,7 @@ def main():
     script_dir = Path(__file__).parent
     project_root = script_dir.parent
     
-    recording_dir = project_root / "data" / "recording_7"
+    recording_dir = project_root / "data" / "recording_3"
     calib_path = project_root / "data" / "cams_calibrations.yml"
     output_dir = script_dir / "calibrated_frames"
     

@@ -8,12 +8,25 @@ import numpy as np
 import time
 import threading
 
+# Import DOPE inference module
+from dope_inference import DOPEDetector, load_dope_detector, create_empty_pose
+
+# =============================================================================
+# Configuration
+# =============================================================================
+
 # Camera recording directory
 RECORDING_DIR = "data/recording_3"
 CALIBRATION_FILE = "data/cams_calibrations.yml"
 
 # Camera to run YOLO on
 YOLO_CAMERA_ID = "137322071489"
+
+# Camera to run DOPE on (for 6D pose estimation)
+DOPE_CAMERA_ID = "135122071615"
+DOPE_WEIGHTS_PATH = "weights/dope_tool.pth"
+DOPE_CONFIG_PATH = "3d_scene/config/config_pose.yaml"
+DOPE_CAMERA_INFO_PATH = "3d_scene/config/camera_info.yaml"
 
 # Define CLASSES for YOLO
 CLASSES = ["person", "case", "case_top", "battery", "screw", "tool"]
@@ -28,13 +41,25 @@ CLASS_COLORS = np.array([
     [0, 200, 0]       # tool: green
 ], dtype=np.uint8)
 
-# Global state
+# =============================================================================
+# Global State
+# =============================================================================
+
 calibration_data = {}
 yolo_model = None
 yolo_device = "cpu"  # Will be set to 'mps', 'cuda', or 'cpu'
 sync_manager = None
 streaming_active = False  # Controls whether frame processing is active
 
+# DOPE 6D pose estimation state
+dope_detector = None
+current_tool_pose = create_empty_pose()
+pose_lock = threading.Lock()
+
+
+# =============================================================================
+# Utility Functions
+# =============================================================================
 
 def get_best_device():
     """Detect the best available device for inference (MPS > CUDA > CPU)."""
@@ -57,6 +82,10 @@ def get_best_device():
         return "cpu"
 
 
+# =============================================================================
+# Video Manager
+# =============================================================================
+
 class SyncedVideoManager:
     """Manages synchronized playback across all cameras."""
     
@@ -77,6 +106,13 @@ class SyncedVideoManager:
         self.inference_counter = 0
         self.cached_yolo_results = None
         self.yolo_overlay = None
+        
+        # DOPE 6D pose detection state
+        self.dope_detector = None
+        self.dope_camera_id = None
+        self.dope_inference_interval = 6  # Run DOPE every 6 frames
+        self.dope_inference_counter = 0
+        self.cached_dope_result = None
         
         # FPS tracking
         self.fps_start_time = time.perf_counter()
@@ -119,6 +155,12 @@ class SyncedVideoManager:
         self.yolo_device = device
         self.yolo_overlay = np.zeros((self.target_height, self.target_width, 3), dtype=np.uint8)
         print(f"[YOLO] Enabled on camera {camera_id} (device: {device})")
+    
+    def set_dope_detector(self, detector, camera_id):
+        """Set DOPE detector for 6D pose estimation on a specific camera."""
+        self.dope_detector = detector
+        self.dope_camera_id = camera_id
+        print(f"[DOPE] Enabled on camera {camera_id}")
     
     def _draw_yolo_predictions(self, frame, results):
         """Draw YOLO predictions on frame."""
@@ -172,12 +214,19 @@ class SyncedVideoManager:
     
     def reset_playback(self):
         """Reset playback to the beginning."""
+        global current_tool_pose
         with self.lock:
             self.current_frame = 0
             self.inference_counter = 0
             self.cached_yolo_results = None
+            self.dope_inference_counter = 0
+            self.cached_dope_result = None
             self.fps_start_time = time.perf_counter()
             self.fps_frame_count = 0
+            
+            # Reset tool pose
+            with pose_lock:
+                current_tool_pose = create_empty_pose()
             
             # Seek all cameras to frame 0
             for cam_data in self.cameras.values():
@@ -235,6 +284,32 @@ class SyncedVideoManager:
                             print(f"[YOLO] Error: {e}")
                             self.cached_yolo_results = None
                 
+                # Run DOPE 6D pose detection on designated camera
+                if camera_id == self.dope_camera_id and self.dope_detector is not None:
+                    if self.dope_inference_counter % self.dope_inference_interval == 0:
+                        try:
+                            result = self.dope_detector.detect(frame)
+                            
+                            # Update global pose state - only update if detection found
+                            # Keep last known pose when no detection (don't hide the object)
+                            global current_tool_pose
+                            with pose_lock:
+                                if result is not None and result["detected"]:
+                                    current_tool_pose = result
+                                    current_tool_pose["fresh"] = True
+                                    self.cached_dope_result = result
+                                else:
+                                    # Mark as stale but keep the last pose
+                                    current_tool_pose["fresh"] = False
+                                    # Keep cached_dope_result for drawing
+                        except Exception as e:
+                            print(f"[DOPE] Error: {e}")
+                            # Don't clear cached result - keep last known pose
+                    
+                    # Draw DOPE detection on the frame (at original resolution)
+                    if self.cached_dope_result is not None:
+                        frame = self.dope_detector.draw_detection(frame, self.cached_dope_result)
+                
                 # Resize for display
                 frame = cv2.resize(frame, (self.target_width, self.target_height), 
                                   interpolation=cv2.INTER_LINEAR)
@@ -246,11 +321,21 @@ class SyncedVideoManager:
                     cv2.putText(frame, f"FPS: {self.current_fps:.1f}", (5, 15),
                                 self.font, 0.45, (0, 255, 0), 1)
                 
+                # Draw DOPE status for DOPE camera
+                if camera_id == self.dope_camera_id and self.dope_detector is not None:
+                    if self.cached_dope_result and self.cached_dope_result.get("detected"):
+                        cv2.putText(frame, "DOPE: DETECTED", (5, 15),
+                                    self.font, 0.4, (0, 255, 0), 1)
+                    else:
+                        cv2.putText(frame, "DOPE: Searching...", (5, 15),
+                                    self.font, 0.4, (0, 165, 255), 1)
+                
                 # Encode as JPEG
                 _, jpeg = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 80])
                 cam_data['cached_jpeg'] = jpeg.tobytes()
             
             self.inference_counter += 1
+            self.dope_inference_counter += 1
     
     def get_frame(self, camera_id):
         """Get cached frame for a camera."""
@@ -293,6 +378,10 @@ async def frame_update_loop():
             await asyncio.sleep(0.1)
 
 
+# =============================================================================
+# Model Loading
+# =============================================================================
+
 def load_yolo_model():
     """Load YOLO model with best available device (MPS/CUDA/CPU)."""
     global yolo_model, yolo_device
@@ -325,6 +414,19 @@ def load_yolo_model():
     except Exception as e:
         print(f"[YOLO] Failed to load model: {e}")
         return None
+
+
+def load_dope_model():
+    """Load DOPE model for 6D pose estimation."""
+    global dope_detector
+    
+    dope_detector = load_dope_detector(
+        weights_path=DOPE_WEIGHTS_PATH,
+        config_path=DOPE_CONFIG_PATH,
+        camera_info_path=DOPE_CAMERA_INFO_PATH,
+        class_name="tool"
+    )
+    return dope_detector
 
 
 def load_calibration():
@@ -379,7 +481,7 @@ def load_calibration():
 
 def init_sync_manager():
     """Initialize synchronized video manager."""
-    global sync_manager, yolo_model
+    global sync_manager, yolo_model, dope_detector
     
     sync_manager = SyncedVideoManager()
     
@@ -401,8 +503,16 @@ def init_sync_manager():
     if yolo_model is not None:
         sync_manager.set_yolo_model(yolo_model, YOLO_CAMERA_ID, yolo_device)
     
+    # Set DOPE detector on designated camera
+    if dope_detector is not None:
+        sync_manager.set_dope_detector(dope_detector, DOPE_CAMERA_ID)
+    
     print(f"[SyncManager] Initialized with {len(sync_manager.cameras)} cameras, synced to {sync_manager.total_frames} frames")
 
+
+# =============================================================================
+# API Routes
+# =============================================================================
 
 async def index(request):
     """Serve HTML page."""
@@ -499,6 +609,39 @@ async def get_streaming_status(request):
     )
 
 
+async def get_tool_pose(request):
+    """Get current 6D pose of the detected tool object.
+    
+    Returns position (x, y, z) in meters and quaternion (x, y, z, w).
+    The pose is in camera coordinate system.
+    """
+    global current_tool_pose
+    with pose_lock:
+        pose_data = current_tool_pose.copy()
+    
+    # Convert numpy arrays to lists for JSON serialization
+    def to_serializable(obj):
+        if isinstance(obj, np.ndarray):
+            return obj.tolist()
+        elif isinstance(obj, (list, tuple)):
+            return [to_serializable(item) for item in obj]
+        elif isinstance(obj, dict):
+            return {k: to_serializable(v) for k, v in obj.items()}
+        return obj
+    
+    pose_data = to_serializable(pose_data)
+    
+    return web.Response(
+        content_type="application/json",
+        text=json.dumps(pose_data),
+        headers={
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache',
+            'Expires': '0'
+        }
+    )
+
+
 async def on_shutdown(app):
     """Cleanup on shutdown."""
     global streaming_active
@@ -506,6 +649,10 @@ async def on_shutdown(app):
     if sync_manager:
         sync_manager.release()
 
+
+# =============================================================================
+# Server
+# =============================================================================
 
 async def run_server(host="0.0.0.0", port=8080):
     """Run server."""
@@ -520,6 +667,7 @@ async def run_server(host="0.0.0.0", port=8080):
     app.router.add_post("/api/stream/stop", stop_streaming)
     app.router.add_post("/api/stream/reset", reset_streaming)
     app.router.add_get("/api/stream/status", get_streaming_status)
+    app.router.add_get("/api/tool/pose", get_tool_pose)
     
     # Static files
     app.router.add_static('/videos/', 'data', show_index=False)
@@ -532,11 +680,14 @@ async def run_server(host="0.0.0.0", port=8080):
     await site.start()
     
     yolo_status = f"enabled on {yolo_device}" if yolo_model else "disabled"
+    dope_status = "enabled" if dope_detector else "disabled"
     print(f"\n{'='*60}")
     print(f"  3D Scene Multi-Camera Server (Synchronized)")
     print(f"{'='*60}")
     print(f"  Web Interface:  http://{host}:{port}")
     print(f"  YOLO Camera:    {YOLO_CAMERA_ID} ({yolo_status})")
+    print(f"  DOPE Camera:    {DOPE_CAMERA_ID} ({dope_status})")
+    print(f"  DOPE Interval:  Every 6 frames")
     print(f"  Total Frames:   {sync_manager.total_frames}")
     print(f"  Cameras:        {len(sync_manager.cameras)}")
     print(f"  Streaming:      Waiting for Start command")
@@ -553,6 +704,10 @@ async def run_server(host="0.0.0.0", port=8080):
         await runner.cleanup()
 
 
+# =============================================================================
+# Main Entry Point
+# =============================================================================
+
 def main():
     """Main entry point."""
     print(f"\n{'='*60}")
@@ -561,6 +716,9 @@ def main():
     
     # Load YOLO model first
     load_yolo_model()
+    
+    # Load DOPE model for 6D pose estimation
+    load_dope_model()
     
     # Load calibration data
     load_calibration()

@@ -404,6 +404,21 @@
         <span class="control-label">Plane Scale</span>
         <span class="control-value" id="planeScale">0.3m</span>
       </div>
+      <div class="control-row">
+        <span class="control-label">DOPE 6D Pose</span>
+        <span
+          class="control-value"
+          id="dopeStatus"
+          style="color: var(--text-muted)"
+          >Waiting...</span
+        >
+      </div>
+      <div class="control-row">
+        <span class="control-label">Tool Position</span>
+        <span class="control-value" id="toolPosition" style="font-size: 0.75em"
+          >--</span
+        >
+      </div>
       <div class="button-group">
         <button class="btn btn-primary" id="startBtn">Start Streams</button>
         <button class="btn btn-secondary" id="resetBtn">Reset View</button>
@@ -423,6 +438,35 @@
     <div class="camera-panel">
       <div class="panel-title">Camera Views</div>
       <div id="cameraList"></div>
+    </div>
+
+    <!-- Instructions -->
+    <div class="instructions">
+      <div class="panel-title" style="margin-bottom: 10px">Controls</div>
+      <div class="instruction-item">
+        <span class="key">Drag</span>
+        <span>Rotate view</span>
+      </div>
+      <div class="instruction-item">
+        <span class="key">Scroll</span>
+        <span>Zoom in/out</span>
+      </div>
+      <div class="instruction-item">
+        <span class="key">R-Click</span>
+        <span>Pan view</span>
+      </div>
+      <div
+        style="
+          margin-top: 10px;
+          padding-top: 8px;
+          border-top: 1px solid var(--border-color);
+          font-size: 0.75em;
+          color: var(--text-muted);
+        "
+      >
+        DOPE runs on camera 142122070087<br />
+        Tool pose updates every 6 frames
+      </div>
     </div>
 
     <!-- Three.js and OrbitControls from CDN -->
@@ -464,6 +508,14 @@
       let streamIntervals = {};
       let frameCount = 0;
       let lastFpsTime = performance.now();
+
+      // eScrewDriver model reference for real-time pose updates
+      let eScrewDriverModel = null;
+      let eScrewDriverCentroid = new THREE.Vector3(0, 0, 0); // Model's centroid offset from origin
+      let posePollingInterval = null;
+
+      // Camera ID for DOPE detection (coordinate transform reference)
+      const DOPE_CAMERA_ID = "135122071615";
 
       // DOM elements
       const container = document.getElementById("canvas-container");
@@ -673,12 +725,23 @@
                 (object) => {
                   console.log("OBJ model loaded successfully");
 
-                  // NOTE: Bounding box calculation and logging have been removed as per instruction.
+                  // Apply scale
+                  object.scale.set(1, 1, 1);
 
-                  // Model is in mm, scene is in meters, so scale by 0.001
-                  object.scale.set(1, 1, 1); // Convert mm to meters
+                  // Calculate bounding box to find centroid offset
+                  const boundingBox = new THREE.Box3().setFromObject(object);
+                  const center = new THREE.Vector3();
+                  boundingBox.getCenter(center);
 
-                  // Position at scene origin at ground level
+                  // Store the centroid offset (in model's local coordinates)
+                  eScrewDriverCentroid.copy(center);
+                  console.log(
+                    "Model centroid offset:",
+                    center.toArray().map((v) => v.toFixed(4))
+                  );
+
+                  // Initially hidden until we get a pose
+                  object.visible = false;
                   object.position.set(0, 0, 0);
 
                   // Enable shadows if needed
@@ -691,9 +754,12 @@
                   });
 
                   scene.add(object);
+
+                  // Store reference for pose updates
+                  eScrewDriverModel = object;
+
                   console.log(
-                    "OBJ model added to scene at position:",
-                    object.position.toArray()
+                    "OBJ model added to scene (hidden until DOPE detection)"
                   );
                   resolve(object);
                 },
@@ -729,6 +795,159 @@
             }
           );
         });
+      }
+
+      // DOM elements for DOPE status
+      const dopeStatusEl = document.getElementById("dopeStatus");
+      const toolPositionEl = document.getElementById("toolPosition");
+
+      // Fetch and update tool pose from DOPE detection
+      async function updateToolPose() {
+        if (!eScrewDriverModel) return;
+
+        try {
+          const response = await fetch("/api/tool/pose");
+          const poseData = await response.json();
+
+          if (poseData.detected) {
+            // Get the DOPE camera calibration for coordinate transform
+            const camCalib = calibrationData[DOPE_CAMERA_ID];
+            if (!camCalib || !camCalib.extrinsics) {
+              console.warn("No calibration for DOPE camera");
+              return;
+            }
+
+            // Extract camera extrinsics (camera to world transform)
+            const ext = camCalib.extrinsics;
+            const camR = new THREE.Matrix4();
+            camR.set(
+              ext[0][0],
+              -ext[0][1],
+              -ext[0][2],
+              0,
+              -ext[1][0],
+              ext[1][1],
+              ext[1][2],
+              0,
+              -ext[2][0],
+              ext[2][1],
+              ext[2][2],
+              0,
+              0,
+              0,
+              0,
+              1
+            );
+            const camPos = new THREE.Vector3(ext[0][3], -ext[1][3], -ext[2][3]);
+            const camQuat = new THREE.Quaternion().setFromRotationMatrix(camR);
+
+            // Object pose from DOPE (in camera coordinates)
+            const objLocation = poseData.location; // [x, y, z] in meters
+            const objQuaternion = poseData.quaternion; // [x, y, z, w]
+
+            // Convert object position from camera to world coordinates
+            // In OpenCV camera: X-right, Y-down, Z-forward
+            // In Three.js: X-right, Y-up, Z-backward
+            const objLocalPos = new THREE.Vector3(
+              objLocation[0],
+              -objLocation[1], // Flip Y
+              -objLocation[2] // Flip Z
+            );
+
+            // Transform to world coordinates
+            objLocalPos.applyQuaternion(camQuat);
+            const worldPos = objLocalPos.add(camPos);
+
+            // Convert object rotation from OpenCV to Three.js
+            // Quaternion from DOPE is in camera frame
+            const objQuat = new THREE.Quaternion(
+              objQuaternion[0],
+              -objQuaternion[1], // Flip Y
+              -objQuaternion[2], // Flip Z
+              objQuaternion[3]
+            );
+
+            // Combine with camera rotation
+            const worldQuat = camQuat.clone().multiply(objQuat);
+
+            // Flip the object 180 degrees around Y axis (in XZ plane)
+            const flipY = new THREE.Quaternion();
+            flipY.setFromAxisAngle(new THREE.Vector3(0, 0, 1), Math.PI);
+            const flipZ = new THREE.Quaternion();
+            flipZ.setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI);
+            const finalQuat = worldQuat.clone().multiply(flipY).multiply(flipZ);
+
+            // Apply pose to model's centroid (not origin)
+            // The DOPE pose specifies where the centroid should be
+            // We need to offset the model position so its centroid ends up there
+
+            // Rotate the centroid offset by the final rotation (including flip)
+            const rotatedCentroid = eScrewDriverCentroid
+              .clone()
+              .applyQuaternion(finalQuat);
+
+            // Offset position so centroid is at the detected pose
+            const modelPos = worldPos.clone().sub(rotatedCentroid);
+
+            // Apply to model - always visible once detected
+            eScrewDriverModel.position.copy(modelPos);
+            eScrewDriverModel.quaternion.copy(finalQuat);
+            eScrewDriverModel.visible = true;
+
+            // Update status indicators based on fresh or cached pose
+            statusDot.classList.add("active");
+            if (poseData.fresh) {
+              statusText.textContent = "Tool Detected";
+              dopeStatusEl.textContent = "DETECTED";
+              dopeStatusEl.style.color = "var(--accent-green)";
+            } else {
+              statusText.textContent = "Tool (cached)";
+              dopeStatusEl.textContent = "CACHED";
+              dopeStatusEl.style.color = "var(--accent-cyan)";
+            }
+
+            // Show position in UI
+            toolPositionEl.textContent = `${worldPos.x.toFixed(
+              2
+            )}, ${worldPos.y.toFixed(2)}, ${worldPos.z.toFixed(2)}m`;
+          } else {
+            // No detection yet - keep model hidden until first detection
+            // Model will remain visible at last position once detected
+            dopeStatusEl.textContent = "Searching...";
+            dopeStatusEl.style.color = "var(--accent-cyan)";
+            toolPositionEl.textContent = "--";
+
+            if (!streaming) {
+              statusText.textContent = "Ready";
+            } else {
+              statusText.textContent = "Streaming";
+            }
+          }
+        } catch (error) {
+          // Silently handle errors to avoid console spam
+          dopeStatusEl.textContent = "Error";
+          dopeStatusEl.style.color = "var(--accent-magenta)";
+        }
+      }
+
+      // Start polling for tool pose updates
+      function startPosePolling() {
+        if (posePollingInterval) return;
+        posePollingInterval = setInterval(updateToolPose, 100); // Poll every 100ms
+        console.log("[Pose] Started polling for tool pose");
+      }
+
+      // Stop polling for tool pose updates
+      function stopPosePolling() {
+        if (posePollingInterval) {
+          clearInterval(posePollingInterval);
+          posePollingInterval = null;
+          console.log("[Pose] Stopped polling for tool pose");
+        }
+        // Keep the model visible at last known position (don't hide it)
+        // Just update status indicator
+        dopeStatusEl.textContent = "Paused";
+        dopeStatusEl.style.color = "var(--text-muted)";
       }
 
       // Load available cameras
@@ -1048,6 +1267,9 @@
 
         streaming = true;
 
+        // Start pose polling for real-time tool position updates
+        startPosePolling();
+
         Object.keys(cameraPlanes).forEach((cameraId) => {
           const plane = cameraPlanes[cameraId];
           const { canvas, ctx, texture } = plane.userData;
@@ -1092,6 +1314,9 @@
       // Stop streaming
       async function stopStreaming() {
         streaming = false;
+
+        // Stop pose polling
+        stopPosePolling();
 
         // Tell the server to stop processing frames
         try {

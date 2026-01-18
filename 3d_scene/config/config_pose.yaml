@@ -182,5 +182,5 @@ overlay_belief_images: True   # Whether to overlay the input image on the belief
 # Config params for DOPE
 thresh_angle: 0.3
 thresh_map: 0.01
-sigma: 3
+sigma: 2
 thresh_points: 0.1

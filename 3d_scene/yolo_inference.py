@@ -19,12 +19,12 @@ CLASSES = ["person", "case", "case_top", "battery", "screw", "tool"]
 
 # Pre-defined colors for each class (BGR format for OpenCV)
 CLASS_COLORS = np.array([
-    [50, 0, 0],       # person: blueish
-    [0, 165, 255],    # case: orange
-    [0, 40, 75],      # case_top: yellow
-    [192, 192, 192],  # battery: silver
-    [140, 0, 140],    # screw: violet
-    [0, 200, 0]       # tool: green
+    (0, 0, 70),   # person: bluelish
+    (255, 165, 0), # case: orange
+    (180, 100, 0),  # case_top:
+    (0, 100, 100),  # battery: Grenn
+    (128, 0, 128),   # screw: violet
+    (0, 100, 0)  # tool: Green
 ], dtype=np.uint8)
 
 # Default model path

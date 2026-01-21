@@ -87,7 +87,7 @@ class SyncedVideoManager:
         # YOLO state
         self.yolo_detector = None  # YOLODetector instance
         self.yolo_camera_id = None
-        self.yolo_inference_interval = 15  # Run YOLO every 3 frames
+        self.yolo_inference_interval = 6  # Run YOLO every 3 frames
         self.yolo_inference_counter = 0
         self.cached_yolo_results = None
         
@@ -95,7 +95,7 @@ class SyncedVideoManager:
         self.dope_detectors = {}  # object_name -> {"detector": DOPEDetector, "camera_id": str}
         self.dope_camera_ids = set()  # All cameras used for DOPE
         self.dope_objects_by_camera = {}  # camera_id -> [(obj_name, detector), ...] - pre-computed
-        self.dope_inference_interval = 15  # Run DOPE every 5 frames
+        self.dope_inference_interval = 8  # Run DOPE every 5 frames
         self.dope_inference_counter = 0
         self.cached_dope_results = {}  # object_name -> detection result
         
@@ -727,7 +727,7 @@ async def on_shutdown(app):
 # Server
 # =============================================================================
 
-async def run_server(host="0.0.0.0", port=8080):
+async def run_server(host="0.0.0.0", port=8085):
     """Run server."""
     app = web.Application()
     

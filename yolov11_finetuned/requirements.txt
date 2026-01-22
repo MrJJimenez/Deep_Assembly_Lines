@@ -13,6 +13,10 @@ huggingface_hub
 einops
 safetensors
 
+#ply plot for vggt notebook demo
+plotly>=5.0.0
+
+
 # For Jupyter notebooks
 ipykernel>=6.25.0
 jupyter>=1.0.0

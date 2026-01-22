@@ -27,6 +27,9 @@ gdown 1HMy5vxv6p16uUAizrhmbJ9WUcKdfwIT-
 
 # Download dope_case.pth
 gdown 1JG4Q1yHxV2wXCAzWjFcfA8et9e-ZU6LY
+
+# Download vggt.pt
+gdown 1VWe6BaP8IcKT45JRxjEb3XZJnIACd1BC
 ```
 
 **Note**: Regular `curl` or `wget` commands don't work well with large Google Drive files due to virus scan warnings. Use `gdown` or download manually.

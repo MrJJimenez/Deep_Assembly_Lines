@@ -515,7 +515,7 @@
       let vggtPointCloudGroup = null; // Group to hold point cloud with transformation
       let vggtPollingInterval = null;
       let vggtLastPointCount = 0;
-      const VGGT_ORIGIN_CAMERA = "135122071615"; // Reference camera for VGGT point cloud (first VGGT input camera)
+      const VGGT_ORIGIN_CAMERA = "137322071489"; // Reference camera for VGGT point cloud (first VGGT input camera)
 
       // DOM elements
       const container = document.getElementById("canvas-container");
@@ -1067,7 +1067,7 @@
         vggtPointCloudGroup.visible = false;
 
         // Scale the point cloud to match the GLB scene scale
-        vggtPointCloudGroup.scale.set(1.4, 1.4, 1.4);
+        vggtPointCloudGroup.scale.set(1.2, 1.2, 1.2);
 
         // Position the point cloud group relative to the reference camera (135122071615)
         updateVGGTPointCloudOrigin(VGGT_ORIGIN_CAMERA);

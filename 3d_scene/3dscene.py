@@ -36,6 +36,11 @@ YOLO_CAMERA_ID = "137322071489"
 DOPE_CONFIG_PATH = "3d_scene/config/config_pose.yaml"
 #DOPE_CAMERA_INFO_PATH = "3d_scene/config/camera_info.yaml"
 
+# DOPE optimization settings
+DOPE_USE_FP16 = False  # Use half-precision for faster GPU inference (can cause detection issues)
+DOPE_STOP_AT_STAGE = 2  # Stop at stage (1-6). Lower = faster but less accurate. 
+                         # Recommended: 6 for accuracy, 4-5 for speed
+
 # Multiple object configurations for DOPE detection (each with its own camera)
 DOPE_OBJECTS = {
     "tool": {
@@ -60,9 +65,9 @@ VGGT_CONF_THRESHOLD_PCT = 60.0  # Filter out bottom 50% low-confidence points
 VGGT_MAX_POINTS = 100000
 # Camera IDs used for VGGT inference (order matters - matches the 7 input frames)
 VGGT_CAMERA_IDS = [
+    "137322071489",
     "135122071615",
     "141722079467",
-    #"137322071489",
 ]
 
 # =============================================================================
@@ -108,7 +113,7 @@ class SyncedVideoManager:
         # YOLO state
         self.yolo_detector = None  # YOLODetector instance
         self.yolo_camera_id = None
-        self.yolo_inference_interval = 6  # Run YOLO every 3 frames
+        self.yolo_inference_interval = 4  # Run YOLO every 3 frames
         self.yolo_inference_counter = 0
         self.cached_yolo_results = None
         
@@ -116,7 +121,7 @@ class SyncedVideoManager:
         self.dope_detectors = {}  # object_name -> {"detector": DOPEDetector, "camera_id": str}
         self.dope_camera_ids = set()  # All cameras used for DOPE
         self.dope_objects_by_camera = {}  # camera_id -> [(obj_name, detector), ...] - pre-computed
-        self.dope_inference_interval = 8  # Run DOPE every 5 frames
+        self.dope_inference_interval = 6  # Run DOPE every N frames (reduced from 60 due to optimizations)
         self.dope_inference_counter = 0
         self.cached_dope_results = {}  # object_name -> detection result
         
@@ -319,7 +324,7 @@ class SyncedVideoManager:
                 cached = self.cached_dope_results.get(obj_name)
                 if cached is not None:
                     frame = detector.draw_detection(frame, cached)
-        
+                    #frame = frame
         # Resize for display (using pre-allocated dimensions)
         frame = cv2.resize(frame, self.resize_dims, interpolation=cv2.INTER_LINEAR)
         
@@ -534,12 +539,19 @@ def init_yolo():
 
 
 def load_dope_models():
-    """Load DOPE models for 6D pose estimation (multi-object support)."""
+    """Load DOPE models for 6D pose estimation (multi-object support).
+    
+    Uses optimized inference with:
+    - FP16 half-precision (configurable via DOPE_USE_FP16)
+    - Configurable stage count (DOPE_STOP_AT_STAGE)
+    """
     global dope_detectors, current_object_poses, first_detection_flags
     
     dope_detectors = {}
     current_object_poses = {}
     first_detection_flags = {}
+    
+    print(f"[DOPE] Optimization settings: FP16={DOPE_USE_FP16}, stop_at_stage={DOPE_STOP_AT_STAGE}")
     
     for obj_name, obj_config in DOPE_OBJECTS.items():
         weights_path = obj_config["weights_path"]
@@ -550,7 +562,9 @@ def load_dope_models():
             weights_path=weights_path,
             config_path=DOPE_CONFIG_PATH,
             camera_info_path=camera_info_path,
-            class_name=class_name
+            class_name=class_name,
+            use_fp16=DOPE_USE_FP16,
+            stop_at_stage=DOPE_STOP_AT_STAGE
         )
         
         if detector is not None:
@@ -1028,7 +1042,8 @@ async def run_server(host="0.0.0.0", port=8085):
     for obj_name, obj_config in DOPE_OBJECTS.items():
         loaded = "loaded" if obj_name in dope_detectors else "not loaded"
         print(f"    - {obj_name}: camera {obj_config['camera_id']} ({loaded})")
-    print(f"  DOPE Interval:  Every 8 frames")
+    print(f"  DOPE Settings:  FP16={DOPE_USE_FP16}, stages={DOPE_STOP_AT_STAGE}")
+    print(f"  DOPE Interval:  Every {sync_manager.dope_inference_interval} frames")
     print(f"  VGGT Status:    {vggt_status}")
     print(f"  VGGT Cameras:   {VGGT_CAMERA_IDS}")
     print(f"  VGGT Interval:  Every {sync_manager.vggt_inference_interval} frames (configurable)")

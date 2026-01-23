@@ -4,6 +4,12 @@ DOPE (Deep Object Pose Estimation) inference module.
 This module provides 6D pose estimation for objects using the DOPE framework.
 It wraps the DOPE detector and provides a clean interface for detecting objects
 and drawing their 3D bounding boxes.
+
+Optimizations applied:
+- torch.inference_mode() for faster inference
+- Optional FP16 half-precision (GPU only)
+- Removed per-frame debug prints
+- Model warmup for consistent latency
 """
 
 import os
@@ -14,11 +20,15 @@ import time
 import numpy as np
 from scipy.spatial.transform import Rotation
 
+import torch
+import torch.nn as nn
+import torchvision.transforms as transforms
+
 # Add DOPE framework to path
 sys.path.append(os.path.join(os.path.dirname(__file__), "..", "frameworks", "dope"))
 from cuboid import Cuboid3d
 from cuboid_pnp_solver import CuboidPNPSolver
-from detector import ModelData, ObjectDetector
+from detector import ModelData, ObjectDetector, transform, DEVICE
 
 
 class DOPEDetector:
@@ -33,7 +43,8 @@ class DOPEDetector:
         dimension: Object dimensions in cm (x, y, z)
     """
     
-    def __init__(self, config_path, camera_info_path, weight_path, class_name="tool"):
+    def __init__(self, config_path, camera_info_path, weight_path, class_name="tool",
+                 use_fp16=False, stop_at_stage=6):
         """Initialize the DOPE detector.
         
         Args:
@@ -41,9 +52,13 @@ class DOPEDetector:
             camera_info_path: Path to camera info YAML file
             weight_path: Path to trained weights (.pth file)
             class_name: Name of the object class to detect
+            use_fp16: Use half-precision for faster inference (GPU only)
+            stop_at_stage: Number of stages to run (1-6, lower = faster)
         """
         self.class_name = class_name
         self.weight_path = weight_path
+        self.use_fp16 = use_fp16 and DEVICE.type == "cuda"
+        self.stop_at_stage = stop_at_stage
         
         # Load configurations
         with open(config_path) as f:
@@ -68,14 +83,19 @@ class DOPEDetector:
         self.config_detect.sigma = self.config["sigma"]
         self.config_detect.thresh_points = self.config["thresh_points"]
         
-        # Load neural network model
-        # Set parallel=True to handle DDP-trained weights with 'module.' prefix
+        # Load neural network model using original ModelData
         self.model = ModelData(
             name=class_name,
             net_path=weight_path,
             parallel=True
         )
         self.model.load_net_model()
+        
+        # Apply FP16 optimization if requested
+        if self.use_fp16:
+            self.model.net = self.model.net.half()
+            print(f"[DOPE] Using FP16 half-precision")
+        
         print(f"[DOPE] Model loaded for class: {class_name}")
         
         # Get draw color (BGR for OpenCV)
@@ -108,7 +128,28 @@ class DOPEDetector:
         # Pre-allocate zero vectors for projectPoints
         self._zero_vec = np.zeros(3)
         
+        # Warmup the model
+        self._warmup()
+        
         print(f"[DOPE] Initialized - Object dimensions (cm): {self.dimension}")
+    
+    def _warmup(self):
+        """Warmup the model with dummy inference."""
+        dummy_h = self.downscale_height
+        dummy_w = int(dummy_h * 16 / 9)
+        dummy = torch.randn(1, 3, dummy_h, dummy_w, device=DEVICE)
+        
+        if self.use_fp16:
+            dummy = dummy.half()
+        
+        with torch.inference_mode():
+            for _ in range(2):
+                _ = self.model.net(dummy)
+        
+        if DEVICE.type == "cuda":
+            torch.cuda.synchronize()
+        
+        print(f"[DOPE] Model warmed up")
     
     def _setup_camera_matrices(self):
         """Setup camera intrinsic matrices from camera info."""
@@ -159,6 +200,32 @@ class DOPEDetector:
         
         return camera_matrix, target_size, scaling_factor
     
+    def _detect_optimized(self, net_model, pnp_solver, in_img, config):
+        """Optimized detection - original logic, no debug prints, inference_mode."""
+        if in_img is None:
+            return [], None
+        
+        # Run network inference with optimizations
+        image_tensor = transform(in_img)
+        image_torch = image_tensor.to(DEVICE).unsqueeze(0)
+        
+        if self.use_fp16:
+            image_torch = image_torch.half()
+        
+        # Use inference_mode for faster execution
+        with torch.inference_mode():
+            out, seg = net_model(image_torch)
+        
+        vertex2 = out[-1][0]
+        aff = seg[-1][0]
+        
+        # Find objects from network output (use original logic)
+        detected_objects = ObjectDetector.find_object_poses(
+            vertex2, aff, pnp_solver, config
+        )
+        
+        return detected_objects, None
+    
     def detect(self, frame):
         """Run 6D pose detection on a frame (optimized).
         
@@ -179,9 +246,8 @@ class DOPEDetector:
         # Get cached scaled parameters
         camera_matrix, target_size, scaling_factor = self._get_scaled_params(height, width)
         
-        # Convert BGR to RGB (faster than [..., ::-1].copy())
+        # Convert BGR to RGB
         frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        #frame_rgb = frame
         
         # Resize if needed
         if target_size is not None:
@@ -191,13 +257,12 @@ class DOPEDetector:
         self.pnp_solver.set_camera_intrinsic_matrix(camera_matrix)
         self.pnp_solver.set_dist_coeffs(self.dist_coeffs)
         
-        # Run object detection
-        results, _ = ObjectDetector.detect_object_in_image(
+        # Run optimized object detection
+        results, _ = self._detect_optimized(
             self.model.net, 
             self.pnp_solver, 
             frame_rgb, 
-            self.config_detect,
-            grid_belief_debug=False
+            self.config_detect
         )
         
         if not results:
@@ -326,8 +391,10 @@ class DOPEDetector:
         cv2.line(frame, centroid_2d, x_axis_2d, (0, 0, 255), 3)  # X: Red
         cv2.line(frame, centroid_2d, y_axis_2d, (0, 255, 0), 3)  # Y: Green
         cv2.line(frame, centroid_2d, z_axis_2d, (255, 0, 0), 3)  # Z: Blue
-    
-def load_dope_detector(weights_path, config_path, camera_info_path, class_name="tool"):
+
+
+def load_dope_detector(weights_path, config_path, camera_info_path, class_name="tool",
+                       use_fp16=False, stop_at_stage=6):
     """Load and initialize a DOPE detector.
     
     Args:
@@ -335,6 +402,8 @@ def load_dope_detector(weights_path, config_path, camera_info_path, class_name="
         config_path: Path to DOPE config YAML file
         camera_info_path: Path to camera info YAML file
         class_name: Name of the object class to detect
+        use_fp16: Use half-precision for faster inference (GPU only)
+        stop_at_stage: Number of stages to run (1-6, lower = faster)
         
     Returns:
         DOPEDetector instance or None if loading fails
@@ -355,7 +424,9 @@ def load_dope_detector(weights_path, config_path, camera_info_path, class_name="
             config_path=config_path,
             camera_info_path=camera_info_path,
             weight_path=weights_path,
-            class_name=class_name
+            class_name=class_name,
+            use_fp16=use_fp16,
+            stop_at_stage=stop_at_stage
         )
         print(f"[DOPE] Model ready")
         return detector

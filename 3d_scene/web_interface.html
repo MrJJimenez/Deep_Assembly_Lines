@@ -1149,62 +1149,136 @@
         }
       }
 
-      // Update VGGT point cloud from server data
+      // VGGT optimization: track last version to avoid redundant updates
+      let vggtLastVersion = -1; // Start at -1 to ensure first fetch always happens
+      let vggtUpdateInProgress = false;
+      
+      // Pre-allocated buffers for point cloud (reused across updates)
+      let vggtPositionBuffer = null;
+      let vggtColorBuffer = null;
+      let vggtBufferSize = 0;
+
+      // Update VGGT point cloud from server data (OPTIMIZED with binary transfer)
       async function updateVGGTPointCloud() {
-        if (!vggtEnabled) return;
+        if (!vggtEnabled || vggtUpdateInProgress) {
+          return;
+        }
+        
+        vggtUpdateInProgress = true;
 
         try {
-          const response = await fetch("/api/vggt/pointcloud");
-          const data = await response.json();
-
-          if (data.success && data.num_points > 0) {
-            // Update geometry with new points
-            // Convert from VGGT/OpenCV coordinates (X-right, Y-down, Z-forward)
-            // to Three.js coordinates (X-right, Y-up, Z-backward)
-            const rawPoints = data.points;
-            const positions = new Float32Array(rawPoints.length * 3);
-
-            for (let i = 0; i < rawPoints.length; i++) {
-              const pt = rawPoints[i];
-              positions[i * 3] = pt[0]; // X stays the same
-              positions[i * 3 + 1] = -pt[1]; // Y is negated (down -> up)
-              positions[i * 3 + 2] = -pt[2]; // Z is negated (forward -> backward)
-            }
-
-            const colors = new Float32Array(
-              data.colors.flat().map((c) => c / 255),
-            ); // Normalize to 0-1
-
-            vggtPointCloud.geometry.setAttribute(
-              "position",
-              new THREE.Float32BufferAttribute(positions, 3),
-            );
-            vggtPointCloud.geometry.setAttribute(
-              "color",
-              new THREE.Float32BufferAttribute(colors, 3),
-            );
-            vggtPointCloud.geometry.computeBoundingSphere();
-            vggtPointCloudGroup.visible = true;
-
-            // Update UI
-            vggtPointsEl.textContent = data.num_points.toLocaleString();
-            vggtStatusEl.textContent = `${data.num_points.toLocaleString()} pts`;
-            vggtStatusEl.style.color = "#00ff88";
-            vggtLastPointCount = data.num_points;
-          } else if (vggtLastPointCount === 0) {
+          // Fetch binary data directly (skip version check for simplicity and reliability)
+          const response = await fetch("/api/vggt/pointcloud/binary");
+          
+          if (!response.ok) {
+            console.error("[VGGT] Fetch failed:", response.status, response.statusText);
+            vggtUpdateInProgress = false;
+            return;
+          }
+          
+          const buffer = await response.arrayBuffer();
+          console.log("[VGGT] Received buffer:", buffer.byteLength, "bytes");
+          
+          // Check minimum size for header
+          if (buffer.byteLength < 12) {
+            console.log("[VGGT] Buffer too small, skipping");
+            vggtUpdateInProgress = false;
+            return;
+          }
+          
+          // Parse header (12 bytes: num_points, version, inference_time_ms)
+          const header = new Uint32Array(buffer, 0, 3);
+          const numPoints = header[0];
+          const version = header[1];
+          const inferenceTimeMs = header[2];
+          
+          // Skip if no points or same version
+          if (numPoints === 0) {
             vggtStatusEl.textContent = "Waiting...";
             vggtStatusEl.style.color = "#ffaa00";
+            vggtUpdateInProgress = false;
+            return;
           }
+          
+          // Skip if version hasn't changed
+          if (version === vggtLastVersion) {
+            vggtUpdateInProgress = false;
+            return;
+          }
+          
+          // Verify buffer size
+          const expectedSize = 12 + (numPoints * 3 * 4) + (numPoints * 3);
+          if (buffer.byteLength < expectedSize) {
+            console.error("[VGGT] Buffer too small:", buffer.byteLength, "expected:", expectedSize);
+            vggtUpdateInProgress = false;
+            return;
+          }
+          
+          // Parse points (float32 x, y, z for each point)
+          const pointsOffset = 12; // After header
+          const pointsBytes = numPoints * 3 * 4; // 3 floats * 4 bytes each
+          const rawPoints = new Float32Array(buffer, pointsOffset, numPoints * 3);
+          
+          // Parse colors (uint8 r, g, b for each point)
+          const colorsOffset = pointsOffset + pointsBytes;
+          const rawColors = new Uint8Array(buffer, colorsOffset, numPoints * 3);
+          
+          // Allocate output buffers
+          const positions = new Float32Array(numPoints * 3);
+          const colors = new Float32Array(numPoints * 3);
+          
+          // Convert coordinates: VGGT (X-right, Y-down, Z-forward) -> Three.js (X-right, Y-up, Z-backward)
+          // And convert colors to 0-1 range
+          for (let i = 0; i < numPoints; i++) {
+            const i3 = i * 3;
+            positions[i3] = rawPoints[i3];           // X stays
+            positions[i3 + 1] = -rawPoints[i3 + 1];  // Y negated
+            positions[i3 + 2] = -rawPoints[i3 + 2];  // Z negated
+            
+            colors[i3] = rawColors[i3] / 255;
+            colors[i3 + 1] = rawColors[i3 + 1] / 255;
+            colors[i3 + 2] = rawColors[i3 + 2] / 255;
+          }
+          
+          // Update geometry
+          const geometry = vggtPointCloud.geometry;
+          
+          geometry.setAttribute(
+            "position",
+            new THREE.BufferAttribute(positions, 3),
+          );
+          geometry.setAttribute(
+            "color", 
+            new THREE.BufferAttribute(colors, 3),
+          );
+          
+          geometry.computeBoundingSphere();
+          vggtPointCloudGroup.visible = true;
+
+          // Update UI
+          vggtPointsEl.textContent = numPoints.toLocaleString();
+          vggtStatusEl.textContent = `${numPoints.toLocaleString()} pts (${inferenceTimeMs}ms)`;
+          vggtStatusEl.style.color = "#00ff88";
+          vggtLastPointCount = numPoints;
+          vggtLastVersion = version;
+          
+          console.log(`[VGGT] Updated: ${numPoints} points, v${version}, ${inferenceTimeMs}ms`);
+          
         } catch (error) {
-          // Silently handle errors
+          console.error("[VGGT] Update error:", error);
         }
+        
+        vggtUpdateInProgress = false;
       }
 
       // Start polling for VGGT point cloud
       function startVGGTPolling() {
         if (vggtPollingInterval) return;
-        vggtPollingInterval = setInterval(updateVGGTPointCloud, 500); // Poll every 500ms
-        console.log("[VGGT] Started polling for point cloud");
+        // Poll every 500ms for reliability
+        vggtPollingInterval = setInterval(updateVGGTPointCloud, 500);
+        console.log("[VGGT] Started polling for point cloud (binary mode, 500ms interval)");
+        // Also do an immediate update
+        updateVGGTPointCloud();
       }
 
       // Stop polling for VGGT point cloud

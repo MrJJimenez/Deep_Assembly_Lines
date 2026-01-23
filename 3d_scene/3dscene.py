@@ -128,7 +128,7 @@ class SyncedVideoManager:
         # VGGT 3D reconstruction state
         self.vggt_detector = None  # VGGTDetector instance
         self.vggt_camera_ids = []  # Camera IDs used for VGGT (in order)
-        self.vggt_inference_interval = 20  # Run VGGT every N frames (configurable)
+        self.vggt_inference_interval = 6  # Run VGGT every N frames (configurable)
         self.vggt_inference_counter = 0
         self.vggt_enabled = False  # Toggle for VGGT inference
         self.cached_vggt_result = None  # Cached point cloud result
@@ -211,7 +211,7 @@ class SyncedVideoManager:
         
         print(f"[DOPE] Enabled '{object_name}' detector on camera {camera_id}")
     
-    def set_vggt_detector(self, detector, camera_ids, inference_interval=20):
+    def set_vggt_detector(self, detector, camera_ids, inference_interval=6):
         """Set VGGT detector for 3D point cloud reconstruction.
         
         Args:
@@ -369,9 +369,15 @@ class SyncedVideoManager:
         # Determine which inferences to run this frame
         run_yolo = (self.yolo_inference_counter % self.yolo_inference_interval) == 0
         run_dope = (self.dope_inference_counter % self.dope_inference_interval) == 0
-        run_vggt = (self.vggt_enabled and 
-                   self.vggt_detector is not None and 
-                   (self.vggt_inference_counter % self.vggt_inference_interval) == 0)
+        
+        # Debug VGGT conditions
+        vggt_interval_ok = (self.vggt_inference_counter % self.vggt_inference_interval) == 0
+        run_vggt = (self.vggt_enabled and self.vggt_detector is not None and vggt_interval_ok)
+        
+        # Log VGGT state periodically
+        if self.current_frame % 100 == 0:
+            print(f"[VGGT Debug] enabled={self.vggt_enabled}, detector={self.vggt_detector is not None}, "
+                  f"interval_ok={vggt_interval_ok}, camera_ids={self.vggt_camera_ids}")
         
         self.current_frame += 1
         self.yolo_inference_counter += 1
@@ -441,9 +447,14 @@ class SyncedVideoManager:
                         vggt_raw_frames[camera_id] = raw_frame
         
         # Run VGGT inference if enabled and we have all required frames
+        if run_vggt:
+            print(f"[VGGT] run_vggt=True, collected_frames={len(vggt_raw_frames)}, required={len(self.vggt_camera_ids)}, "
+                  f"collected_ids={list(vggt_raw_frames.keys())}, required_ids={self.vggt_camera_ids}")
+        
         if run_vggt and len(vggt_raw_frames) == len(self.vggt_camera_ids):
             # Collect frames in the correct order
             vggt_frames = [vggt_raw_frames[cam_id] for cam_id in self.vggt_camera_ids]
+            print(f"[VGGT] Triggering inference with {len(vggt_frames)} frames")
             
             # Run VGGT inference in background thread to not block frame processing
             def run_vggt_async():
@@ -452,6 +463,7 @@ class SyncedVideoManager:
                 with point_cloud_lock:
                     current_point_cloud = result
                     self.cached_vggt_result = result
+                print(f"[VGGT] Inference complete: success={result.get('success')}, points={result.get('num_points')}")
             
             self.executor.submit(run_vggt_async)
         
@@ -887,11 +899,18 @@ async def get_dope_objects(request):
 # VGGT Point Cloud API Routes
 # =============================================================================
 
+# Cache for VGGT binary data to avoid recomputation
+_vggt_binary_cache = {
+    'data': None,
+    'num_points': 0,
+    'version': 0
+}
+_vggt_version_counter = 0
+
 async def get_vggt_point_cloud(request):
-    """Get current VGGT point cloud data.
+    """Get current VGGT point cloud data (JSON format - legacy).
     
-    Returns point cloud positions and colors for 3D visualization.
-    Points are in world coordinates.
+    Note: Use /api/vggt/pointcloud/binary for better performance.
     """
     global current_point_cloud
     
@@ -917,6 +936,92 @@ async def get_vggt_point_cloud(request):
         text=fast_json_dumps(result),
         headers=NO_CACHE_HEADERS
     )
+
+
+async def get_vggt_point_cloud_binary(request):
+    """Get VGGT point cloud as binary data for ultra-fast transmission.
+    
+    Binary format:
+    - Header (12 bytes): num_points (uint32), version (uint32), inference_time_ms (uint32)
+    - Points (num_points * 12 bytes): float32 x, y, z for each point
+    - Colors (num_points * 3 bytes): uint8 r, g, b for each point
+    
+    Total size for 50K points: ~750KB vs ~4MB for JSON
+    """
+    global current_point_cloud, _vggt_binary_cache, _vggt_version_counter
+    
+    with point_cloud_lock:
+        if current_point_cloud is None or not current_point_cloud.get('success', False):
+            # Return minimal header indicating no data
+            header = np.array([0, 0, 0], dtype=np.uint32).tobytes()
+            return web.Response(
+                body=header,
+                content_type="application/octet-stream",
+                headers=NO_CACHE_HEADERS
+            )
+        
+        num_points = current_point_cloud['num_points']
+        inference_time = current_point_cloud.get('inference_time', 0)
+        
+        # Always rebuild binary data (point cloud content may change even with same count)
+        _vggt_version_counter += 1
+        
+        # Build binary data - ensure arrays are contiguous and correctly shaped
+        points = current_point_cloud['points']
+        colors = current_point_cloud['colors']
+        
+        # Ensure correct shape (N, 3) and make contiguous
+        if points.ndim == 1:
+            points = points.reshape(-1, 3)
+        if colors.ndim == 1:
+            colors = colors.reshape(-1, 3)
+        
+        # Flatten to 1D for binary transfer: [x0,y0,z0,x1,y1,z1,...]
+        points_flat = np.ascontiguousarray(points.flatten(), dtype=np.float32)
+        colors_flat = np.ascontiguousarray(colors.flatten(), dtype=np.uint8)
+        
+        # Header: num_points, version, inference_time_ms
+        inference_time_ms = int(inference_time * 1000)
+        header = np.array([num_points, _vggt_version_counter, inference_time_ms], dtype=np.uint32)
+        
+        # Combine into single bytes object
+        binary_data = header.tobytes() + points_flat.tobytes() + colors_flat.tobytes()
+        
+        # Debug logging (remove in production)
+        print(f"[VGGT Binary] Sending {num_points} points, {len(binary_data)} bytes, v{_vggt_version_counter}")
+    
+    return web.Response(
+        body=binary_data,
+        content_type="application/octet-stream",
+        headers=NO_CACHE_HEADERS
+    )
+
+
+async def get_vggt_point_cloud_version(request):
+    """Get just the version/count of current point cloud (for change detection).
+    
+    Returns minimal JSON to check if point cloud has changed.
+    Always returns current state - version increments on each new point cloud.
+    """
+    global current_point_cloud
+    
+    with point_cloud_lock:
+        if current_point_cloud is None or not current_point_cloud.get('success', False):
+            return web.Response(
+                content_type="application/json",
+                text='{"v":0,"n":0}',
+                headers=NO_CACHE_HEADERS
+            )
+        
+        # Use inference time as a simple change indicator
+        # (each inference produces new data)
+        version = int(current_point_cloud.get('inference_time', 0) * 10000)
+        
+        return web.Response(
+            content_type="application/json",
+            text=f'{{"v":{version},"n":{current_point_cloud["num_points"]}}}',
+            headers=NO_CACHE_HEADERS
+        )
 
 
 async def get_vggt_status(request):
@@ -1017,6 +1122,8 @@ async def run_server(host="0.0.0.0", port=8085):
     
     # VGGT routes
     app.router.add_get("/api/vggt/pointcloud", get_vggt_point_cloud)
+    app.router.add_get("/api/vggt/pointcloud/binary", get_vggt_point_cloud_binary)
+    app.router.add_get("/api/vggt/pointcloud/version", get_vggt_point_cloud_version)
     app.router.add_get("/api/vggt/status", get_vggt_status)
     app.router.add_post("/api/vggt/enable", set_vggt_enabled)
     app.router.add_post("/api/vggt/interval", set_vggt_interval)

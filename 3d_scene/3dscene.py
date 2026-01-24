@@ -68,6 +68,7 @@ VGGT_CAMERA_IDS = [
     "137322071489",
     "135122071615",
     "141722079467",
+    "142122070087",
 ]
 
 # =============================================================================
@@ -128,7 +129,7 @@ class SyncedVideoManager:
         # VGGT 3D reconstruction state
         self.vggt_detector = None  # VGGTDetector instance
         self.vggt_camera_ids = []  # Camera IDs used for VGGT (in order)
-        self.vggt_inference_interval = 6  # Run VGGT every N frames (configurable)
+        self.vggt_inference_interval = 3  # Run VGGT every N frames (configurable)
         self.vggt_inference_counter = 0
         self.vggt_enabled = False  # Toggle for VGGT inference
         self.cached_vggt_result = None  # Cached point cloud result

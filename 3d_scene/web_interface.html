@@ -1,4 +1,4 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
@@ -513,6 +513,15 @@
       let caseBoundingBox = null; // THREE.Mesh for transparent bounding box
       let caseBoundingBoxEdges = null; // THREE.LineSegments for box edges
 
+      // Bounding box for tool object
+      let toolBoundingBox = null; // THREE.Mesh for transparent bounding box
+      let toolBoundingBoxEdges = null; // THREE.LineSegments for box edges
+
+      // Distance line from tool to case
+      let distanceLine = null; // THREE.Line connecting tool centroid to case vertex
+      let distanceLabel = null; // THREE.Sprite showing distance in mm
+      let caseBoundingBoxSize = null; // Store case bounding box size for vertex calculation
+
       // GLB scene model state
       let glbSceneModel = null; // THREE.Object3D for the loaded GLB scene
       let glbVisible = true;
@@ -558,7 +567,7 @@
           60,
           window.innerWidth / window.innerHeight,
           0.1,
-          100,
+          100
         );
         // Position to see the multi-camera setup from above and side
         camera.position.set(1.5, 1.5, 2.5);
@@ -668,7 +677,7 @@
                   0,
                   0,
                   0,
-                  1,
+                  1
                 );
 
                 const quaternion = new THREE.Quaternion();
@@ -688,7 +697,7 @@
 
                 console.log(
                   `GLB model positioned at camera ${glbOriginCameraId}:`,
-                  position.toArray().map((v) => v.toFixed(3)),
+                  position.toArray().map((v) => v.toFixed(3))
                 );
               } else {
                 console.warn("Calibration not found for GLB origin camera");
@@ -696,11 +705,11 @@
               }
 
               scene.add(model);
-              
+
               // Store reference for visibility control
               glbSceneModel = model;
               glbSceneModel.visible = glbVisible;
-              
+
               console.log("GLB model added to scene");
               resolve(model);
             },
@@ -711,7 +720,7 @@
             (error) => {
               console.error("Error loading GLB:", error);
               reject(error);
-            },
+            }
           );
         });
       }
@@ -723,7 +732,7 @@
           objectConfigs = await response.json();
           console.log(
             "DOPE objects config loaded:",
-            Object.keys(objectConfigs),
+            Object.keys(objectConfigs)
           );
           return objectConfigs;
         } catch (error) {
@@ -778,7 +787,7 @@
                   objectCentroids[objectName] = center.clone();
                   console.log(
                     `[${objectName}] Model centroid offset:`,
-                    center.toArray().map((v) => v.toFixed(4)),
+                    center.toArray().map((v) => v.toFixed(4))
                   );
 
                   // Initially hidden until we get a pose
@@ -800,7 +809,7 @@
                   objectModels[objectName] = object;
 
                   console.log(
-                    `[${objectName}] OBJ model added to scene (hidden until DOPE detection)`,
+                    `[${objectName}] OBJ model added to scene (hidden until DOPE detection)`
                   );
                   resolve(object);
                 },
@@ -808,18 +817,18 @@
                   if (progress.total > 0) {
                     const percent = (progress.loaded / progress.total) * 100;
                     console.log(
-                      `[${objectName}] Loading OBJ: ${percent.toFixed(1)}%`,
+                      `[${objectName}] Loading OBJ: ${percent.toFixed(1)}%`
                     );
                   }
                 },
                 (error) => {
                   console.error(
                     `[${objectName}] Error loading OBJ file:`,
-                    basePath + objFileName,
+                    basePath + objFileName
                   );
                   console.error(`[${objectName}] OBJ Error details:`, error);
                   reject(error);
-                },
+                }
               );
             },
             (progress) => {
@@ -828,11 +837,11 @@
             (error) => {
               console.error(
                 `[${objectName}] Error loading MTL file:`,
-                basePath + mtlFileName,
+                basePath + mtlFileName
               );
               console.error(`[${objectName}] MTL Error details:`, error);
               reject(error);
-            },
+            }
           );
         });
       }
@@ -843,9 +852,84 @@
         const boundingBox = new THREE.Box3().setFromObject(caseModel);
         const size = new THREE.Vector3();
         boundingBox.getSize(size);
-        
-        console.log(`[case] Bounding box size:`, size.toArray().map((v) => v.toFixed(4)));
-        
+
+        // Store size for distance calculation
+        caseBoundingBoxSize = size.clone();
+
+        console.log(
+          `[case] Bounding box size:`,
+          size.toArray().map((v) => v.toFixed(4))
+        );
+
+        // Create transparent box mesh
+        const boxGeometry = new THREE.BoxGeometry(size.x, size.y, size.z);
+        const boxMaterial = new THREE.MeshBasicMaterial({
+          color: 0x00d4ff, // Cyan/Blue color
+          transparent: true,
+          opacity: 0.15,
+          side: THREE.DoubleSide,
+          depthWrite: false,
+        });
+
+        caseBoundingBox = new THREE.Mesh(boxGeometry, boxMaterial);
+        caseBoundingBox.visible = false; // Hidden until case is detected
+
+        // Create edges for the bounding box
+        const edgesGeometry = new THREE.EdgesGeometry(boxGeometry);
+        const edgesMaterial = new THREE.LineBasicMaterial({
+          color: 0x00d4ff,
+          linewidth: 2,
+          transparent: true,
+          opacity: 0.8,
+        });
+
+        caseBoundingBoxEdges = new THREE.LineSegments(
+          edgesGeometry,
+          edgesMaterial
+        );
+        caseBoundingBox.add(caseBoundingBoxEdges);
+
+        scene.add(caseBoundingBox);
+        console.log("[case] Transparent bounding box created");
+      }
+
+      // Update case bounding box position to match the case model
+      function updateCaseBoundingBox() {
+        if (!caseBoundingBox || !objectModels["case"]) return;
+
+        const caseModel = objectModels["case"];
+        const centroid = objectCentroids["case"];
+
+        if (caseModel.visible && centroid) {
+          // Position bounding box at the case model's centroid position
+          // The case model is offset so its centroid is at the detected pose
+          // So the bounding box center should be at: model.position + rotated centroid
+          const rotatedCentroid = centroid
+            .clone()
+            .applyQuaternion(caseModel.quaternion);
+          caseBoundingBox.position
+            .copy(caseModel.position)
+            .add(rotatedCentroid);
+          caseBoundingBox.quaternion.copy(caseModel.quaternion);
+          caseBoundingBox.visible = true;
+
+          // Update distance line to tool
+          updateDistanceLine();
+        }
+      }
+
+      // Create transparent bounding box for the tool object
+      function createToolBoundingBox(toolModel) {
+        // Calculate bounding box dimensions from the model
+        const boundingBox = new THREE.Box3().setFromObject(toolModel);
+        const size = new THREE.Vector3();
+        boundingBox.getSize(size);
+
+        console.log(
+          `[tool] Bounding box size:`,
+          size.toArray().map((v) => v.toFixed(4))
+        );
+
         // Create transparent box mesh
         const boxGeometry = new THREE.BoxGeometry(size.x, size.y, size.z);
         const boxMaterial = new THREE.MeshBasicMaterial({
@@ -855,10 +939,10 @@
           side: THREE.DoubleSide,
           depthWrite: false,
         });
-        
-        caseBoundingBox = new THREE.Mesh(boxGeometry, boxMaterial);
-        caseBoundingBox.visible = false; // Hidden until case is detected
-        
+
+        toolBoundingBox = new THREE.Mesh(boxGeometry, boxMaterial);
+        toolBoundingBox.visible = false; // Hidden until tool is detected
+
         // Create edges for the bounding box
         const edgesGeometry = new THREE.EdgesGeometry(boxGeometry);
         const edgesMaterial = new THREE.LineBasicMaterial({
@@ -867,30 +951,241 @@
           transparent: true,
           opacity: 0.8,
         });
-        
-        caseBoundingBoxEdges = new THREE.LineSegments(edgesGeometry, edgesMaterial);
-        caseBoundingBox.add(caseBoundingBoxEdges);
-        
-        scene.add(caseBoundingBox);
-        console.log("[case] Transparent bounding box created");
+
+        toolBoundingBoxEdges = new THREE.LineSegments(
+          edgesGeometry,
+          edgesMaterial
+        );
+        toolBoundingBox.add(toolBoundingBoxEdges);
+
+        scene.add(toolBoundingBox);
+        console.log("[tool] Transparent bounding box created");
       }
-      
-      // Update case bounding box position to match the case model
-      function updateCaseBoundingBox() {
-        if (!caseBoundingBox || !objectModels["case"]) return;
-        
-        const caseModel = objectModels["case"];
-        const centroid = objectCentroids["case"];
-        
-        if (caseModel.visible && centroid) {
-          // Position bounding box at the case model's centroid position
-          // The case model is offset so its centroid is at the detected pose
-          // So the bounding box center should be at: model.position + rotated centroid
-          const rotatedCentroid = centroid.clone().applyQuaternion(caseModel.quaternion);
-          caseBoundingBox.position.copy(caseModel.position).add(rotatedCentroid);
-          caseBoundingBox.quaternion.copy(caseModel.quaternion);
-          caseBoundingBox.visible = true;
+
+      // Update tool bounding box position to match the tool model
+      function updateToolBoundingBox() {
+        if (!toolBoundingBox || !objectModels["tool"]) return;
+
+        const toolModel = objectModels["tool"];
+        const centroid = objectCentroids["tool"];
+
+        if (toolModel.visible && centroid) {
+          // Position bounding box at the tool model's centroid position
+          const rotatedCentroid = centroid
+            .clone()
+            .applyQuaternion(toolModel.quaternion);
+          toolBoundingBox.position
+            .copy(toolModel.position)
+            .add(rotatedCentroid);
+          toolBoundingBox.quaternion.copy(toolModel.quaternion);
+          toolBoundingBox.visible = true;
+
+          // Update distance line to case
+          updateDistanceLine();
+        } else {
+          toolBoundingBox.visible = false;
+          // Hide distance line when tool is not visible
+          if (distanceLine) distanceLine.visible = false;
+          if (distanceLabel) distanceLabel.visible = false;
         }
+      }
+
+      // Create text sprite for distance label
+      function createTextSprite(text, color = "#ffffff") {
+        const canvas = document.createElement("canvas");
+        const context = canvas.getContext("2d");
+        canvas.width = 256;
+        canvas.height = 64;
+
+        // Clear canvas
+        context.clearRect(0, 0, canvas.width, canvas.height);
+
+        // Background
+        context.fillStyle = "rgba(0, 0, 0, 0.7)";
+        context.roundRect(0, 0, canvas.width, canvas.height, 8);
+        context.fill();
+
+        // Text
+        context.font = "bold 32px JetBrains Mono, monospace";
+        context.fillStyle = color;
+        context.textAlign = "center";
+        context.textBaseline = "middle";
+        context.fillText(text, canvas.width / 2, canvas.height / 2);
+
+        const texture = new THREE.CanvasTexture(canvas);
+        texture.minFilter = THREE.LinearFilter;
+
+        const material = new THREE.SpriteMaterial({
+          map: texture,
+          transparent: true,
+          depthTest: false,
+        });
+
+        const sprite = new THREE.Sprite(material);
+        sprite.scale.set(0.15, 0.0375, 1); // Adjust scale for readability
+
+        return sprite;
+      }
+
+      // Update text on existing sprite
+      function updateTextSprite(sprite, text, color = "#ffffff") {
+        const canvas = document.createElement("canvas");
+        const context = canvas.getContext("2d");
+        canvas.width = 256;
+        canvas.height = 64;
+
+        // Clear canvas
+        context.clearRect(0, 0, canvas.width, canvas.height);
+
+        // Background
+        context.fillStyle = "rgba(0, 0, 0, 0.7)";
+        context.roundRect(0, 0, canvas.width, canvas.height, 8);
+        context.fill();
+
+        // Text
+        context.font = "bold 32px JetBrains Mono, monospace";
+        context.fillStyle = color;
+        context.textAlign = "center";
+        context.textBaseline = "middle";
+        context.fillText(text, canvas.width / 2, canvas.height / 2);
+
+        sprite.material.map.dispose();
+        sprite.material.map = new THREE.CanvasTexture(canvas);
+        sprite.material.map.minFilter = THREE.LinearFilter;
+        sprite.material.needsUpdate = true;
+      }
+
+      // Initialize distance line and label
+      function initDistanceLine() {
+        // Create cylinder geometry for thick line (will be updated dynamically)
+        // Start with a unit cylinder, will be scaled/positioned in updateDistanceLine
+        const cylinderGeometry = new THREE.CylinderGeometry(0.004, 0.004, 1, 8); // 4mm radius
+        const cylinderMaterial = new THREE.MeshBasicMaterial({
+          color: 0xffaa00, // Orange color for visibility
+          transparent: true,
+          opacity: 0.9,
+        });
+
+        distanceLine = new THREE.Mesh(cylinderGeometry, cylinderMaterial);
+        distanceLine.visible = false;
+        scene.add(distanceLine);
+
+        // Create distance label
+        distanceLabel = createTextSprite("0 mm", "#ffaa00");
+        distanceLabel.visible = false;
+        scene.add(distanceLabel);
+
+        console.log("[Distance] Line and label initialized");
+      }
+
+      // Get the 4 top vertices of the case bounding box in world coordinates
+      function getCaseTopVertices() {
+        if (
+          !caseBoundingBox ||
+          !caseBoundingBox.visible ||
+          !caseBoundingBoxSize
+        ) {
+          return [];
+        }
+
+        const halfX = caseBoundingBoxSize.x / 2;
+        const halfY = caseBoundingBoxSize.y / 2;
+        const halfZ = caseBoundingBoxSize.z / 2;
+
+        // Top vertices in local coordinates (Y is up)
+        const localVertices = [
+          new THREE.Vector3(-halfX, halfY, -halfZ),
+          new THREE.Vector3(halfX, halfY, -halfZ),
+          new THREE.Vector3(halfX, halfY, halfZ),
+          new THREE.Vector3(-halfX, halfY, halfZ),
+        ];
+
+        // Transform to world coordinates
+        const worldVertices = localVertices.map((v) => {
+          const worldV = v.clone();
+          worldV.applyQuaternion(caseBoundingBox.quaternion);
+          worldV.add(caseBoundingBox.position);
+          return worldV;
+        });
+
+        return worldVertices;
+      }
+
+      // Update distance line from tool tip (offset from centroid) to nearest case top vertex
+      function updateDistanceLine() {
+        if (!distanceLine || !distanceLabel) return;
+        if (!toolBoundingBox || !toolBoundingBox.visible) {
+          distanceLine.visible = false;
+          distanceLabel.visible = false;
+          return;
+        }
+        if (!caseBoundingBox || !caseBoundingBox.visible) {
+          distanceLine.visible = false;
+          distanceLabel.visible = false;
+          return;
+        }
+
+        // Get tool centroid (center of tool bounding box)
+        const toolCentroid = toolBoundingBox.position.clone();
+
+        // Apply offset for e-screwdriver tip in tool's local coordinates
+        // Offset: +8cm in Y, +10cm in Z (in meters)
+        const tipOffset = new THREE.Vector3(0.11, 0.08, 0);
+        // Rotate offset by tool's orientation to get world-space offset
+        tipOffset.applyQuaternion(toolBoundingBox.quaternion);
+        // Add offset to centroid to get tool tip position
+        const toolTipPosition = toolCentroid.add(tipOffset);
+
+        // Get case top vertices
+        const caseTopVertices = getCaseTopVertices();
+        if (caseTopVertices.length === 0) {
+          distanceLine.visible = false;
+          distanceLabel.visible = false;
+          return;
+        }
+
+        // Find nearest top vertex to the tool tip
+        let nearestVertex = caseTopVertices[0];
+        let minDistance = toolTipPosition.distanceTo(nearestVertex);
+
+        for (let i = 1; i < caseTopVertices.length; i++) {
+          const dist = toolTipPosition.distanceTo(caseTopVertices[i]);
+          if (dist < minDistance) {
+            minDistance = dist;
+            nearestVertex = caseTopVertices[i];
+          }
+        }
+
+        // Update cylinder position and orientation
+        // Position at midpoint between the two points
+        const midpoint = new THREE.Vector3()
+          .addVectors(toolTipPosition, nearestVertex)
+          .multiplyScalar(0.5);
+        distanceLine.position.copy(midpoint);
+
+        // Scale cylinder height to match distance
+        distanceLine.scale.set(1, minDistance, 1);
+
+        // Orient cylinder to point from toolTip to nearestVertex
+        // Cylinder's default orientation is along Y axis
+        const direction = new THREE.Vector3()
+          .subVectors(nearestVertex, toolTipPosition)
+          .normalize();
+        const quaternion = new THREE.Quaternion();
+        quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), direction);
+        distanceLine.quaternion.copy(quaternion);
+
+        distanceLine.visible = true;
+
+        // Update label position (midpoint of line, slightly offset)
+        const labelPos = midpoint.clone();
+        labelPos.y += 0.02; // Slight offset above the line
+        distanceLabel.position.copy(labelPos);
+
+        // Update label text (convert meters to mm)
+        const distanceMM = Math.round(minDistance * 1000);
+        updateTextSprite(distanceLabel, `${distanceMM} mm`, "#ffaa00");
+        distanceLabel.visible = true;
       }
 
       // Load all configured DOPE objects
@@ -904,21 +1199,29 @@
               loadOBJModel(objectName, config.obj_path).catch((error) => {
                 console.warn(
                   `[${objectName}] Failed to load model, continuing:`,
-                  error,
+                  error
                 );
                 return null;
-              }),
+              })
             );
           }
         }
 
         await Promise.all(loadPromises);
         console.log(`Loaded ${Object.keys(objectModels).length} object models`);
-        
+
         // Create bounding box for case object if loaded
         if (objectModels["case"]) {
           createCaseBoundingBox(objectModels["case"]);
         }
+
+        // Create bounding box for tool object if loaded
+        if (objectModels["tool"]) {
+          createToolBoundingBox(objectModels["tool"]);
+        }
+
+        // Initialize distance line between tool and case
+        initDistanceLine();
       }
 
       // Fetch and update poses for all detected objects
@@ -957,7 +1260,7 @@
               const camCalib = calibrationData[cameraId];
               if (!camCalib || !camCalib.extrinsics) {
                 console.warn(
-                  `No calibration for camera ${cameraId} (object: ${objectName})`,
+                  `No calibration for camera ${cameraId} (object: ${objectName})`
                 );
                 continue;
               }
@@ -983,15 +1286,15 @@
                 0,
                 0,
                 0,
-                1,
+                1
               );
               const camPos = new THREE.Vector3(
                 ext[0][3],
                 -ext[1][3],
-                -ext[2][3],
+                -ext[2][3]
               );
               const camQuat = new THREE.Quaternion().setFromRotationMatrix(
-                camR,
+                camR
               );
 
               // Object pose from DOPE (in camera coordinates)
@@ -1004,7 +1307,7 @@
               const objLocalPos = new THREE.Vector3(
                 objLocation[0],
                 -objLocation[1], // Flip Y
-                -objLocation[2], // Flip Z
+                -objLocation[2] // Flip Z
               );
 
               // Transform to world coordinates
@@ -1022,7 +1325,7 @@
                 objQuaternion[0],
                 -objQuaternion[1], // Flip Y
                 -objQuaternion[2], // Flip Z
-                objQuaternion[3],
+                objQuaternion[3]
               );
 
               // Combine with camera rotation
@@ -1063,7 +1366,7 @@
                 };
                 console.log(
                   `[${objectName}] First detection stored at:`,
-                  modelPos.toArray().map((v) => v.toFixed(3)),
+                  modelPos.toArray().map((v) => v.toFixed(3))
                 );
               }
 
@@ -1072,10 +1375,15 @@
               model.position.copy(modelPos);
               model.quaternion.copy(finalQuat);
               model.visible = true;
-              
+
               // Update bounding box for case object
               if (objectName === "case") {
                 updateCaseBoundingBox();
+              }
+
+              // Update bounding box for tool object
+              if (objectName === "tool") {
+                updateToolBoundingBox();
               }
             }
           }
@@ -1127,12 +1435,12 @@
         const geometry = new THREE.BufferGeometry();
         geometry.setAttribute(
           "position",
-          new THREE.Float32BufferAttribute([], 3),
+          new THREE.Float32BufferAttribute([], 3)
         );
         geometry.setAttribute("color", new THREE.Float32BufferAttribute([], 3));
 
         const material = new THREE.PointsMaterial({
-          size: 0.010,
+          size: 0.01,
           vertexColors: true,
           sizeAttenuation: true,
         });
@@ -1202,7 +1510,7 @@
             0,
             0,
             0,
-            1,
+            1
           );
 
           const quaternion = new THREE.Quaternion();
@@ -1215,11 +1523,11 @@
 
           console.log(
             `[VGGT] Point cloud origin set to camera ${cameraId}:`,
-            position.toArray().map((v) => v.toFixed(3)),
+            position.toArray().map((v) => v.toFixed(3))
           );
         } else {
           console.warn(
-            `[VGGT] No calibration found for camera ${cameraId}, keeping current position`,
+            `[VGGT] No calibration found for camera ${cameraId}, keeping current position`
           );
         }
       }
@@ -1227,7 +1535,7 @@
       // VGGT optimization: track last version to avoid redundant updates
       let vggtLastVersion = -1; // Start at -1 to ensure first fetch always happens
       let vggtUpdateInProgress = false;
-      
+
       // Pre-allocated buffers for point cloud (reused across updates)
       let vggtPositionBuffer = null;
       let vggtColorBuffer = null;
@@ -1238,35 +1546,39 @@
         if (!vggtEnabled || vggtUpdateInProgress) {
           return;
         }
-        
+
         vggtUpdateInProgress = true;
 
         try {
           // Fetch binary data directly (skip version check for simplicity and reliability)
           const response = await fetch("/api/vggt/pointcloud/binary");
-          
+
           if (!response.ok) {
-            console.error("[VGGT] Fetch failed:", response.status, response.statusText);
+            console.error(
+              "[VGGT] Fetch failed:",
+              response.status,
+              response.statusText
+            );
             vggtUpdateInProgress = false;
             return;
           }
-          
+
           const buffer = await response.arrayBuffer();
           console.log("[VGGT] Received buffer:", buffer.byteLength, "bytes");
-          
+
           // Check minimum size for header
           if (buffer.byteLength < 12) {
             console.log("[VGGT] Buffer too small, skipping");
             vggtUpdateInProgress = false;
             return;
           }
-          
+
           // Parse header (12 bytes: num_points, version, inference_time_ms)
           const header = new Uint32Array(buffer, 0, 3);
           const numPoints = header[0];
           const version = header[1];
           const inferenceTimeMs = header[2];
-          
+
           // Skip if no points or same version
           if (numPoints === 0) {
             vggtStatusEl.textContent = "Waiting...";
@@ -1274,59 +1586,65 @@
             vggtUpdateInProgress = false;
             return;
           }
-          
+
           // Skip if version hasn't changed
           if (version === vggtLastVersion) {
             vggtUpdateInProgress = false;
             return;
           }
-          
+
           // Verify buffer size
-          const expectedSize = 12 + (numPoints * 3 * 4) + (numPoints * 3);
+          const expectedSize = 12 + numPoints * 3 * 4 + numPoints * 3;
           if (buffer.byteLength < expectedSize) {
-            console.error("[VGGT] Buffer too small:", buffer.byteLength, "expected:", expectedSize);
+            console.error(
+              "[VGGT] Buffer too small:",
+              buffer.byteLength,
+              "expected:",
+              expectedSize
+            );
             vggtUpdateInProgress = false;
             return;
           }
-          
+
           // Parse points (float32 x, y, z for each point)
           const pointsOffset = 12; // After header
           const pointsBytes = numPoints * 3 * 4; // 3 floats * 4 bytes each
-          const rawPoints = new Float32Array(buffer, pointsOffset, numPoints * 3);
-          
+          const rawPoints = new Float32Array(
+            buffer,
+            pointsOffset,
+            numPoints * 3
+          );
+
           // Parse colors (uint8 r, g, b for each point)
           const colorsOffset = pointsOffset + pointsBytes;
           const rawColors = new Uint8Array(buffer, colorsOffset, numPoints * 3);
-          
+
           // Allocate output buffers
           const positions = new Float32Array(numPoints * 3);
           const colors = new Float32Array(numPoints * 3);
-          
+
           // Convert coordinates: VGGT (X-right, Y-down, Z-forward) -> Three.js (X-right, Y-up, Z-backward)
           // And convert colors to 0-1 range
           for (let i = 0; i < numPoints; i++) {
             const i3 = i * 3;
-            positions[i3] = rawPoints[i3];           // X stays
-            positions[i3 + 1] = -rawPoints[i3 + 1];  // Y negated
-            positions[i3 + 2] = -rawPoints[i3 + 2];  // Z negated
-            
+            positions[i3] = rawPoints[i3]; // X stays
+            positions[i3 + 1] = -rawPoints[i3 + 1]; // Y negated
+            positions[i3 + 2] = -rawPoints[i3 + 2]; // Z negated
+
             colors[i3] = rawColors[i3] / 255;
             colors[i3 + 1] = rawColors[i3 + 1] / 255;
             colors[i3 + 2] = rawColors[i3 + 2] / 255;
           }
-          
+
           // Update geometry
           const geometry = vggtPointCloud.geometry;
-          
+
           geometry.setAttribute(
             "position",
-            new THREE.BufferAttribute(positions, 3),
+            new THREE.BufferAttribute(positions, 3)
           );
-          geometry.setAttribute(
-            "color", 
-            new THREE.BufferAttribute(colors, 3),
-          );
-          
+          geometry.setAttribute("color", new THREE.BufferAttribute(colors, 3));
+
           geometry.computeBoundingSphere();
           vggtPointCloudGroup.visible = true;
 
@@ -1336,13 +1654,14 @@
           vggtStatusEl.style.color = "#00ff88";
           vggtLastPointCount = numPoints;
           vggtLastVersion = version;
-          
-          console.log(`[VGGT] Updated: ${numPoints} points, v${version}, ${inferenceTimeMs}ms`);
-          
+
+          console.log(
+            `[VGGT] Updated: ${numPoints} points, v${version}, ${inferenceTimeMs}ms`
+          );
         } catch (error) {
           console.error("[VGGT] Update error:", error);
         }
-        
+
         vggtUpdateInProgress = false;
       }
 
@@ -1351,7 +1670,9 @@
         if (vggtPollingInterval) return;
         // Poll every 500ms for reliability
         vggtPollingInterval = setInterval(updateVGGTPointCloud, 500);
-        console.log("[VGGT] Started polling for point cloud (binary mode, 500ms interval)");
+        console.log(
+          "[VGGT] Started polling for point cloud (binary mode, 500ms interval)"
+        );
         // Also do an immediate update
         updateVGGTPointCloud();
       }
@@ -1585,7 +1906,7 @@
 
         lineGeometry.setAttribute(
           "position",
-          new THREE.Float32BufferAttribute(linePositions, 3),
+          new THREE.Float32BufferAttribute(linePositions, 3)
         );
         const lineMaterial = new THREE.LineBasicMaterial({
           color: color,
@@ -1629,7 +1950,7 @@
         const position = new THREE.Vector3(
           t[0],
           -t[1], // Flip Y
-          -t[2], // Flip Z
+          -t[2] // Flip Z
         );
 
         // Use rotation from extrinsics
@@ -1651,7 +1972,7 @@
           0,
           0,
           0,
-          1,
+          1
         );
         const quaternion = new THREE.Quaternion();
         quaternion.setFromRotationMatrix(rotMatrix);
@@ -1670,7 +1991,7 @@
 
         console.log(
           `Camera ${cameraId} (#${calibration.number}) pos:`,
-          position.toArray().map((v) => v.toFixed(3)),
+          position.toArray().map((v) => v.toFixed(3))
         );
       }
 
@@ -1855,7 +2176,7 @@
         } catch (error) {
           console.error(
             "Failed to load DOPE object models, continuing anyway:",
-            error,
+            error
           );
         }
 

@@ -344,6 +344,258 @@
         min-width: 60px;
         text-align: center;
       }
+
+      /* Screw Tracker Floating Panel */
+      .screw-tracker-panel {
+        position: fixed;
+        top: 80px;
+        left: 290px;
+        background: rgba(0, 0, 0, 0.95);
+        border: 1px solid #333333;
+        border-radius: 12px;
+        padding: 16px;
+        z-index: 100;
+        width: 200px;
+        backdrop-filter: blur(20px);
+        display: none;
+      }
+
+      .screw-tracker-panel.visible {
+        display: block;
+      }
+
+      .screw-tracker-title {
+        font-size: 0.75em;
+        text-transform: uppercase;
+        letter-spacing: 1.5px;
+        color: #999999;
+        margin-bottom: 12px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+
+      .screw-tracker-title .state-badge {
+        font-size: 9px;
+        padding: 2px 6px;
+        border-radius: 10px;
+        background: #333;
+        color: #888;
+        text-transform: uppercase;
+      }
+
+      .screw-tracker-title .state-badge.idle { background: #333; color: #888; }
+      .screw-tracker-title .state-badge.approaching { background: #ff990033; color: #ffaa00; }
+      .screw-tracker-title .state-badge.screwing { background: #00d4ff33; color: #00d4ff; }
+      .screw-tracker-title .state-badge.completed { background: #00ff8833; color: #00ff88; }
+
+      /* Case diagram - visual representation */
+      .case-diagram {
+        position: relative;
+        width: 160px;
+        height: 100px;
+        margin: 0 auto 12px auto;
+        background: linear-gradient(135deg, #1a1a25 0%, #0f0f15 100%);
+        border: 2px solid #444;
+        border-radius: 8px;
+        box-shadow: inset 0 2px 4px rgba(0,0,0,0.3);
+      }
+
+      .case-diagram::before {
+        content: 'CASE';
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        font-size: 10px;
+        color: #444;
+        letter-spacing: 2px;
+      }
+
+      .case-screw {
+        position: absolute;
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        border: 2px solid #555;
+        background: #222;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 8px;
+        font-weight: bold;
+        color: #666;
+        transition: all 0.3s ease;
+      }
+
+      .case-screw.tl { top: 6px; left: 6px; }
+      .case-screw.tr { top: 6px; right: 6px; }
+      .case-screw.bl { bottom: 6px; left: 6px; }
+      .case-screw.br { bottom: 6px; right: 6px; }
+
+      .case-screw.pending {
+        border-color: #555;
+        background: #222;
+        color: #666;
+      }
+
+      .case-screw.next-expected {
+        border-color: #ffaa00;
+        background: #ffaa0022;
+        color: #ffaa00;
+        animation: pulse-border 1.5s infinite;
+      }
+
+      .case-screw.active {
+        border-color: #00d4ff;
+        background: #00d4ff33;
+        color: #00d4ff;
+        box-shadow: 0 0 10px #00d4ff55;
+      }
+
+      .case-screw.done {
+        border-color: #00ff88;
+        background: #00ff88;
+        color: #000;
+      }
+
+      .case-screw.done::after {
+        content: '✓';
+        font-size: 12px;
+      }
+
+      .case-screw.error {
+        border-color: #ff5555;
+        background: #ff555533;
+        color: #ff5555;
+      }
+
+      @keyframes pulse-border {
+        0%, 100% { box-shadow: 0 0 0 0 rgba(255, 170, 0, 0.4); }
+        50% { box-shadow: 0 0 0 6px rgba(255, 170, 0, 0); }
+      }
+
+      /* Sequence order indicator */
+      .sequence-order {
+        display: flex;
+        justify-content: center;
+        gap: 4px;
+        margin-bottom: 12px;
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 11px;
+      }
+
+      .sequence-order span {
+        padding: 2px 6px;
+        border-radius: 4px;
+        background: #222;
+        color: #666;
+      }
+
+      .sequence-order span.done {
+        background: #00ff8833;
+        color: #00ff88;
+      }
+
+      .sequence-order span.current {
+        background: #ffaa0033;
+        color: #ffaa00;
+      }
+
+      .sequence-order span.error {
+        background: #ff555533;
+        color: #ff5555;
+        text-decoration: line-through;
+      }
+
+      /* Result banner */
+      .result-banner {
+        text-align: center;
+        padding: 8px;
+        border-radius: 6px;
+        font-size: 11px;
+        font-weight: 500;
+        margin-bottom: 12px;
+      }
+
+      .result-banner.success {
+        background: #00ff8822;
+        color: #00ff88;
+        border: 1px solid #00ff8844;
+      }
+
+      .result-banner.error {
+        background: #ff555522;
+        color: #ff5555;
+        border: 1px solid #ff555544;
+      }
+
+      .result-banner.progress {
+        background: #00d4ff22;
+        color: #00d4ff;
+        border: 1px solid #00d4ff44;
+      }
+
+      .result-banner.waiting {
+        background: #33333344;
+        color: #888;
+        border: 1px solid #444;
+      }
+
+      /* History section */
+      .screw-history {
+        border-top: 1px solid #333;
+        padding-top: 10px;
+        margin-top: 10px;
+      }
+
+      .screw-history-title {
+        font-size: 10px;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        color: #666;
+        margin-bottom: 8px;
+      }
+
+      .history-list {
+        max-height: 120px;
+        overflow-y: auto;
+        font-size: 10px;
+        font-family: 'JetBrains Mono', monospace;
+      }
+
+      .history-item {
+        display: flex;
+        justify-content: space-between;
+        padding: 4px 6px;
+        margin-bottom: 4px;
+        background: #1a1a25;
+        border-radius: 4px;
+        border-left: 3px solid #444;
+      }
+
+      .history-item.correct {
+        border-left-color: #00ff88;
+      }
+
+      .history-item.incorrect {
+        border-left-color: #ff5555;
+      }
+
+      .history-item .run-number {
+        color: #666;
+      }
+
+      .history-item .sequence {
+        color: #aaa;
+      }
+
+      .history-item .result {
+        font-weight: bold;
+      }
+
+      .history-item .result.pass { color: #00ff88; }
+      .history-item .result.fail { color: #ff5555; }
     </style>
   </head>
   <body>
@@ -450,6 +702,59 @@
         <span class="control-value" id="vggtPoints">0</span>
       </div>
 
+      <!-- Screw Sequence Tracking Controls -->
+      <div class="panel-title" style="margin-top: 15px">Screw Sequence</div>
+      <div class="control-row">
+        <span class="control-label">Track Camera</span>
+        <select id="screwCameraSelect" style="background: #2a2a35; color: #ffffff; border: 1px solid #555; padding: 4px 8px; border-radius: 4px; font-size: 11px; min-width: 130px; cursor: pointer;">
+          <option value="">Loading...</option>
+        </select>
+      </div>
+      <div class="control-row">
+        <label class="control-label" for="screwTrackingEnabled" style="cursor: pointer">
+          <input
+            type="checkbox"
+            id="screwTrackingEnabled"
+            checked
+            style="margin-right: 8px; cursor: pointer"
+          />
+          Track Sequence
+        </label>
+        <span class="control-value" id="screwTrackingStatus" style="color: #888">Ready</span>
+      </div>
+      <div class="control-row">
+        <label class="control-label" for="screwPanelEnabled" style="cursor: pointer">
+          <input
+            type="checkbox"
+            id="screwPanelEnabled"
+            checked
+            style="margin-right: 8px; cursor: pointer"
+          />
+          Show Panel
+        </label>
+      </div>
+      <!-- Mode selector removed - always uses 3D tracking -->
+      <div class="control-row">
+        <span class="control-label">Step</span>
+        <span class="control-value" id="screwStep">0/4</span>
+      </div>
+      <div class="control-row">
+        <span class="control-label">Next</span>
+        <span class="control-value" id="screwNext" style="color: #ffaa00">BL</span>
+      </div>
+      <div id="screwSequenceIndicator" style="display: flex; gap: 8px; margin-top: 10px; justify-content: center;">
+        <div class="screw-indicator" data-pos="bottom_left" style="width: 30px; height: 30px; border-radius: 50%; border: 2px solid #888; display: flex; align-items: center; justify-content: center; font-size: 10px; color: #888;">BL</div>
+        <div class="screw-indicator" data-pos="top_right" style="width: 30px; height: 30px; border-radius: 50%; border: 2px solid #888; display: flex; align-items: center; justify-content: center; font-size: 10px; color: #888;">TR</div>
+        <div class="screw-indicator" data-pos="bottom_right" style="width: 30px; height: 30px; border-radius: 50%; border: 2px solid #888; display: flex; align-items: center; justify-content: center; font-size: 10px; color: #888;">BR</div>
+        <div class="screw-indicator" data-pos="top_left" style="width: 30px; height: 30px; border-radius: 50%; border: 2px solid #888; display: flex; align-items: center; justify-content: center; font-size: 10px; color: #888;">TL</div>
+      </div>
+      <div id="screwSequenceResult" style="text-align: center; margin-top: 10px; font-size: 12px; color: #888;">
+        Waiting for screwing...
+      </div>
+      <button class="btn btn-secondary" id="resetScrewBtn" style="width: 100%; margin-top: 10px; padding: 6px 10px; font-size: 11px;">
+        Reset Sequence
+      </button>
+
       <div
         style="
           border-top: 1px solid #333333;
@@ -460,6 +765,38 @@
         <div class="panel-title" style="margin-top: 0">Cameras</div>
       </div>
       <div id="cameraList"></div>
+    </div>
+
+    <!-- Screw Tracker Visual Panel -->
+    <div class="screw-tracker-panel" id="screwTrackerPanel">
+      <div class="screw-tracker-title">
+        <span>🔩 Screw Tracker</span>
+        <span class="state-badge idle" id="screwStateBadge">IDLE</span>
+      </div>
+
+      <!-- Visual case diagram with screws -->
+      <div class="case-diagram">
+        <div class="case-screw tl" id="screwTL" data-pos="top_left">1</div>
+        <div class="case-screw tr" id="screwTR" data-pos="top_right">2</div>
+        <div class="case-screw bl" id="screwBL" data-pos="bottom_left">3</div>
+        <div class="case-screw br" id="screwBR" data-pos="bottom_right">4</div>
+      </div>
+
+      <!-- Expected sequence -->
+      <div class="sequence-order" id="sequenceOrderDisplay">
+        <span data-step="0">BL</span>
+        <span>→</span>
+        <span data-step="1">TR</span>
+        <span>→</span>
+        <span data-step="2">BR</span>
+        <span>→</span>
+        <span data-step="3">TL</span>
+      </div>
+
+      <!-- Result banner -->
+      <div class="result-banner waiting" id="screwResultBanner">
+        Waiting for screwing...
+      </div>
     </div>
 
     <!-- Three.js and OrbitControls from CDN -->
@@ -1145,14 +1482,21 @@
         }
 
         // Find nearest top vertex to the tool tip
+        // Vertex indices match physical screw positions:
+        // 0 = top-left (-x, +y, -z)
+        // 1 = top-right (+x, +y, -z)  
+        // 2 = bottom-right (+x, +y, +z)
+        // 3 = bottom-left (-x, +y, +z)
         let nearestVertex = caseTopVertices[0];
         let minDistance = toolTipPosition.distanceTo(nearestVertex);
+        let nearestVertexIndex = 0;
 
         for (let i = 1; i < caseTopVertices.length; i++) {
           const dist = toolTipPosition.distanceTo(caseTopVertices[i]);
           if (dist < minDistance) {
             minDistance = dist;
             nearestVertex = caseTopVertices[i];
+            nearestVertexIndex = i;
           }
         }
 
@@ -1187,17 +1531,27 @@
         updateTextSprite(distanceLabel, `${distanceMM} mm`, "#ffaa00");
         distanceLabel.visible = true;
         
-        // Send distance to backend (in cm)
+        // Send distance AND nearest screw to backend (in cm)
         const distanceCM = minDistance * 100;
-        sendDistanceToBackend(distanceCM);
+        // Map vertex index to screw position name
+        // Corrected based on actual testing: vertex order is TR, BR, BL, TL
+        const vertexToScrew = ['top_right', 'bottom_right', 'bottom_left', 'top_left'];
+        const nearestScrew = vertexToScrew[nearestVertexIndex];
+        
+        // Debug: log when distance is small (tool is near a screw)
+        if (distanceCM < 10) {
+          console.log(`[Screw3D] vertex=${nearestVertexIndex} (${nearestScrew}), dist=${distanceCM.toFixed(1)}cm`);
+        }
+        
+        sendDistanceToBackend(distanceCM, nearestScrew);
       }
       
       // Throttle for sending distance to backend
       let lastDistanceSendTime = 0;
-      const DISTANCE_SEND_INTERVAL = 100; // Send every 100ms max
+      const DISTANCE_SEND_INTERVAL = 50; // Send every 50ms for responsive tracking
       
-      // Send distance to backend
-      async function sendDistanceToBackend(distanceCM) {
+      // Send distance and nearest screw to backend
+      async function sendDistanceToBackend(distanceCM, nearestScrew) {
         const now = Date.now();
         if (now - lastDistanceSendTime < DISTANCE_SEND_INTERVAL) {
           return; // Throttle requests
@@ -1208,7 +1562,10 @@
           await fetch('/api/distance/tool-case', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ distance_cm: distanceCM })
+            body: JSON.stringify({ 
+              distance_cm: distanceCM,
+              nearest_screw: nearestScrew
+            })
           });
         } catch (error) {
           // Silently handle errors to avoid console spam
@@ -1795,6 +2152,382 @@
         }
       }
 
+      // ==========================================================
+      // Screw Sequence Tracking Functions
+      // ==========================================================
+
+      // DOM elements for screw tracking (sidebar panel)
+      const screwTrackingEnabledCheckbox = document.getElementById("screwTrackingEnabled");
+      const screwPanelEnabledCheckbox = document.getElementById("screwPanelEnabled");
+      const screwCameraSelect = document.getElementById("screwCameraSelect");
+      const screwModeSelect = document.getElementById("screwModeSelect");
+      const screwTrackingStatusEl = document.getElementById("screwTrackingStatus");
+      const screwStepEl = document.getElementById("screwStep");
+      const screwNextEl = document.getElementById("screwNext");
+      const screwSequenceResultEl = document.getElementById("screwSequenceResult");
+      const resetScrewBtn = document.getElementById("resetScrewBtn");
+      const screwIndicators = document.querySelectorAll(".screw-indicator");
+
+      // DOM elements for visual screw tracker panel
+      const screwTrackerPanel = document.getElementById("screwTrackerPanel");
+      const screwStateBadge = document.getElementById("screwStateBadge");
+      const screwResultBanner = document.getElementById("screwResultBanner");
+      const sequenceOrderDisplay = document.getElementById("sequenceOrderDisplay");
+
+      // Visual screw elements in case diagram
+      const screwElements = {
+        'top_left': document.getElementById("screwTL"),
+        'top_right': document.getElementById("screwTR"),
+        'bottom_left': document.getElementById("screwBL"),
+        'bottom_right': document.getElementById("screwBR")
+      };
+
+      let screwTrackingEnabled = true;
+      let screwPanelVisible = true;
+      let screwPollingInterval = null;
+      let lastScrewStatus = null;
+
+      // Short names for screw positions
+      const SCREW_SHORT_NAMES = {
+        'bottom_left': 'BL',
+        'top_right': 'TR',
+        'bottom_right': 'BR',
+        'top_left': 'TL'
+      };
+
+      // Populate camera dropdown for screw tracking
+      async function populateScrewCameraSelect(cameras, currentCameraId) {
+        screwCameraSelect.innerHTML = '';
+        // cameras can be array of strings or array of objects with id
+        cameras.forEach(cam => {
+          const camId = typeof cam === 'string' ? cam : cam.id;
+          const option = document.createElement('option');
+          option.value = camId;
+          // Add "(best)" label to the recommended tracking camera
+          option.textContent = camId === '137322071489' ? `${camId} (best)` : camId;
+          option.style.color = '#ffffff';
+          option.style.backgroundColor = '#2a2a35';
+          if (camId === currentCameraId) {
+            option.selected = true;
+          }
+          screwCameraSelect.appendChild(option);
+        });
+        console.log('[Screw] Camera dropdown populated with', cameras.length, 'cameras, current:', currentCameraId);
+      }
+
+      // Get current YOLO camera
+      async function getYoloCamera() {
+        try {
+          const response = await fetch("/api/yolo/camera");
+          const data = await response.json();
+          return data.camera_id;
+        } catch (error) {
+          console.error("[Screw] Failed to get YOLO camera:", error);
+          return null;
+        }
+      }
+
+      // Set YOLO camera for screw tracking
+      async function setYoloCamera(cameraId) {
+        try {
+          const response = await fetch("/api/yolo/camera", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ camera_id: cameraId }),
+          });
+          const result = await response.json();
+          if (result.success) {
+            console.log(`[Screw] Switched tracking to camera ${cameraId}`);
+            updateScrewStatus(); // Refresh status
+          } else {
+            console.error("[Screw] Failed to switch camera:", result.error);
+          }
+        } catch (error) {
+          console.error("[Screw] Failed to set YOLO camera:", error);
+        }
+      }
+
+      // Update screw sequence UI
+      function updateScrewSequenceUI(status) {
+        if (!status) return;
+
+        // Update step counter
+        screwStepEl.textContent = `${status.current_step}/4`;
+        
+        // Update 3D progress indicator
+        const progressEl = document.getElementById("screw3DProgress");
+        if (progressEl && status.frames_near_3d !== undefined) {
+          const frames = status.frames_near_3d || 0;
+          const max = status.frames_to_complete_3d || 40;
+          progressEl.textContent = `${frames}/${max}`;
+          // Color based on progress
+          if (frames >= max) {
+            progressEl.style.color = "#00ff88"; // Green = complete
+          } else if (frames > 0) {
+            progressEl.style.color = "#ffaa00"; // Yellow = in progress
+          } else {
+            progressEl.style.color = "#888"; // Gray = idle
+          }
+        }
+
+        // Update next expected
+        if (status.next_expected) {
+          screwNextEl.textContent = SCREW_SHORT_NAMES[status.next_expected] || status.next_expected;
+          screwNextEl.style.color = "#ffaa00";
+        } else {
+          screwNextEl.textContent = status.completed ? "Done" : "-";
+          screwNextEl.style.color = status.completed ? "#00ff88" : "#888";
+        }
+
+        // Update tracking status
+        if (status.current_state === "screwing") {
+          screwTrackingStatusEl.textContent = "Screwing...";
+          screwTrackingStatusEl.style.color = "#ffaa00";
+        } else if (status.current_state === "approaching") {
+          screwTrackingStatusEl.textContent = "Approaching";
+          screwTrackingStatusEl.style.color = "#00d4ff";
+        } else if (status.completed) {
+          screwTrackingStatusEl.textContent = status.is_correct ? "Complete ✓" : "Complete ✗";
+          screwTrackingStatusEl.style.color = status.is_correct ? "#00ff88" : "#ff5555";
+        } else {
+          screwTrackingStatusEl.textContent = "Tracking";
+          screwTrackingStatusEl.style.color = "#888";
+        }
+
+        // Update indicators
+        const expectedOrder = ["bottom_left", "top_right", "bottom_right", "top_left"];
+        screwIndicators.forEach((indicator, index) => {
+          const pos = indicator.dataset.pos;
+          const screwData = status.screws[pos];
+          const orderIndex = expectedOrder.indexOf(pos);
+
+          if (screwData && screwData.is_tightened) {
+            // Completed
+            indicator.style.borderColor = "#00ff88";
+            indicator.style.backgroundColor = "#00ff8833";
+            indicator.style.color = "#00ff88";
+          } else if (orderIndex === status.current_step) {
+            // Current expected
+            indicator.style.borderColor = "#ffaa00";
+            indicator.style.backgroundColor = "#ffaa0033";
+            indicator.style.color = "#ffaa00";
+          } else if (status.active_screw === pos) {
+            // Active (tool near)
+            indicator.style.borderColor = "#00d4ff";
+            indicator.style.backgroundColor = "#00d4ff33";
+            indicator.style.color = "#00d4ff";
+          } else {
+            // Pending
+            indicator.style.borderColor = "#888";
+            indicator.style.backgroundColor = "transparent";
+            indicator.style.color = "#888";
+          }
+        });
+
+        // Update result text
+        if (status.completed) {
+          if (status.is_correct) {
+            screwSequenceResultEl.textContent = "✓ Sequence Correct!";
+            screwSequenceResultEl.style.color = "#00ff88";
+          } else {
+            screwSequenceResultEl.textContent = "✗ Sequence Error: " + (status.errors[0] || "Wrong order");
+            screwSequenceResultEl.style.color = "#ff5555";
+          }
+        } else if (!status.is_correct) {
+          screwSequenceResultEl.textContent = "✗ Error: " + (status.errors[status.errors.length - 1] || "Wrong order");
+          screwSequenceResultEl.style.color = "#ff5555";
+        } else if (status.current_step > 0) {
+          const done = status.actual_sequence.map(s => SCREW_SHORT_NAMES[s] || s).join(" → ");
+          screwSequenceResultEl.textContent = `Progress: ${done}`;
+          screwSequenceResultEl.style.color = "#00ff88";
+        } else {
+          screwSequenceResultEl.textContent = "Waiting for screwing...";
+          screwSequenceResultEl.style.color = "#888";
+        }
+
+        // === Update Visual Screw Tracker Panel ===
+        updateVisualScrewPanel(status);
+
+        lastScrewStatus = status;
+      }
+
+      // Update the visual screw tracker panel
+      function updateVisualScrewPanel(status) {
+        if (!screwTrackerPanel || !screwPanelVisible) return;
+
+        // Update state badge
+        const state = status.current_state || 'idle';
+        screwStateBadge.textContent = state.toUpperCase();
+        screwStateBadge.className = 'state-badge ' + state;
+
+        // Update case diagram screws
+        const expectedOrder = ["bottom_left", "top_right", "bottom_right", "top_left"];
+        Object.keys(screwElements).forEach(pos => {
+          const el = screwElements[pos];
+          if (!el) return;
+
+          const screwData = status.screws[pos];
+          const orderIndex = expectedOrder.indexOf(pos);
+          
+          // Reset classes
+          el.className = 'case-screw ' + (pos === 'top_left' ? 'tl' : pos === 'top_right' ? 'tr' : pos === 'bottom_left' ? 'bl' : 'br');
+
+          if (screwData && screwData.is_tightened) {
+            el.classList.add('done');
+            el.innerHTML = '';  // Will show checkmark via CSS
+          } else if (status.active_screw === pos && status.current_state === 'screwing') {
+            el.classList.add('active');
+            el.textContent = screwData?.tighten_order || (orderIndex + 1);
+          } else if (orderIndex === status.current_step) {
+            el.classList.add('next-expected');
+            el.textContent = orderIndex + 1;
+          } else {
+            el.classList.add('pending');
+            el.textContent = orderIndex + 1;
+          }
+        });
+
+        // Update sequence order display
+        const stepSpans = sequenceOrderDisplay.querySelectorAll('span[data-step]');
+        stepSpans.forEach(span => {
+          const step = parseInt(span.dataset.step);
+          span.className = '';
+          
+          if (step < status.current_step) {
+            span.classList.add('done');
+          } else if (step === status.current_step) {
+            span.classList.add('current');
+          }
+        });
+
+        // Update result banner
+        if (status.completed) {
+          if (status.is_correct) {
+            screwResultBanner.textContent = "✓ SEQUENCE CORRECT!";
+            screwResultBanner.className = 'result-banner success';
+          } else {
+            screwResultBanner.textContent = "✗ WRONG ORDER: " + (status.errors[0] || "Error");
+            screwResultBanner.className = 'result-banner error';
+          }
+        } else if (!status.is_correct && status.errors.length > 0) {
+          screwResultBanner.textContent = "✗ " + status.errors[status.errors.length - 1];
+          screwResultBanner.className = 'result-banner error';
+        } else if (status.current_step > 0) {
+          const progress = status.actual_sequence.map(s => SCREW_SHORT_NAMES[s]).join('→');
+          screwResultBanner.textContent = "⚡ " + progress;
+          screwResultBanner.className = 'result-banner progress';
+        } else if (status.current_state === 'approaching') {
+          screwResultBanner.textContent = "🔍 Tool approaching...";
+          screwResultBanner.className = 'result-banner progress';
+        } else if (status.current_state === 'screwing') {
+          screwResultBanner.textContent = "🔧 Screwing " + (SCREW_SHORT_NAMES[status.active_screw] || '...');
+          screwResultBanner.className = 'result-banner progress';
+        } else {
+          screwResultBanner.textContent = "Waiting for screwing...";
+          screwResultBanner.className = 'result-banner waiting';
+        }
+      }
+
+      // Poll for screw sequence status
+      async function updateScrewStatus() {
+        if (!screwTrackingEnabled) return;
+
+        try {
+          const response = await fetch("/api/screw/status");
+          const status = await response.json();
+          updateScrewSequenceUI(status);
+        } catch (error) {
+          // Silently handle errors
+        }
+      }
+
+      // Start polling for screw status
+      function startScrewPolling() {
+        if (screwPollingInterval) return;
+        screwPollingInterval = setInterval(updateScrewStatus, 250); // Poll every 250ms
+        console.log("[Screw] Started polling for sequence status");
+        updateScrewStatus();
+      }
+
+      // Stop polling for screw status
+      function stopScrewPolling() {
+        if (screwPollingInterval) {
+          clearInterval(screwPollingInterval);
+          screwPollingInterval = null;
+          console.log("[Screw] Stopped polling for sequence status");
+        }
+      }
+
+      // Reset screw sequence
+      async function resetScrewSequence() {
+        try {
+          const response = await fetch("/api/screw/reset", { method: "POST" });
+          const result = await response.json();
+          console.log("[Screw] Sequence reset:", result);
+          updateScrewStatus();
+        } catch (error) {
+          console.error("[Screw] Failed to reset sequence:", error);
+        }
+      }
+
+      // Set screw tracking mode (3D-only or YOLO-only)
+      async function setScrewMode(mode) {
+        try {
+          const response = await fetch("/api/screw/mode", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ mode }),
+          });
+          const result = await response.json();
+          if (!result.success) {
+            console.error("[Screw] Failed to set mode:", result.error);
+          } else {
+            console.log("[Screw] Tracking mode set to", mode);
+            // Refresh status to reflect any immediate changes
+            updateScrewStatus();
+          }
+        } catch (error) {
+          console.error("[Screw] Failed to set mode:", error);
+        }
+      }
+
+      // Toggle screw tracking
+      async function setScrewTrackingEnabled(enabled) {
+        try {
+          const response = await fetch("/api/screw/enable", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ enabled }),
+          });
+          const result = await response.json();
+
+          if (result.success) {
+            screwTrackingEnabled = enabled;
+            if (enabled && streaming) {
+              startScrewPolling();
+              showScrewTrackerPanel(true);
+            } else {
+              stopScrewPolling();
+              showScrewTrackerPanel(false);
+            }
+            console.log(`[Screw] Tracking ${enabled ? "enabled" : "disabled"}`);
+          }
+        } catch (error) {
+          console.error("[Screw] Failed to toggle tracking:", error);
+        }
+      }
+
+      // Show/hide the visual screw tracker panel
+      function showScrewTrackerPanel(visible) {
+        if (screwTrackerPanel) {
+          if (visible) {
+            screwTrackerPanel.classList.add('visible');
+          } else {
+            screwTrackerPanel.classList.remove('visible');
+          }
+        }
+      }
+
       // Load available cameras
       async function loadCameras() {
         try {
@@ -2099,12 +2832,24 @@
 
         streaming = true;
 
+        // Reset screw sequence when starting a new stream
+        await resetScrewSequence();
+
         // Start pose polling for real-time tool position updates
         startPosePolling();
 
         // Start VGGT polling if enabled
         if (vggtEnabled) {
           startVGGTPolling();
+        }
+
+        // Start screw sequence polling if enabled
+        if (screwTrackingEnabled) {
+          startScrewPolling();
+        }
+        // Always show panel on load if checkbox is checked
+        if (screwPanelVisible && screwPanelEnabledCheckbox.checked) {
+          showScrewTrackerPanel(true);
         }
 
         Object.keys(cameraPlanes).forEach((cameraId) => {
@@ -2157,6 +2902,9 @@
         // Stop VGGT polling
         stopVGGTPolling();
 
+        // Stop screw sequence polling
+        stopScrewPolling();
+
         // Tell the server to stop processing frames
         try {
           const response = await fetch("/api/stream/stop", { method: "POST" });
@@ -2189,6 +2937,10 @@
         availableCameras = await loadCameras();
 
         console.log("Available cameras:", availableCameras);
+
+        // Populate screw camera dropdown and get current YOLO camera
+        const currentYoloCamera = await getYoloCamera();
+        populateScrewCameraSelect(availableCameras, currentYoloCamera);
 
         // Load GLB scene model (after calibration so we can position it)
         try {
@@ -2261,6 +3013,26 @@
         vggtIntervalSelect.addEventListener("change", (e) => {
           setVGGTInterval(e.target.value);
         });
+
+        // Screw tracking event listeners
+        screwTrackingEnabledCheckbox.addEventListener("change", (e) => {
+          setScrewTrackingEnabled(e.target.checked);
+        });
+
+        screwPanelEnabledCheckbox.addEventListener("change", (e) => {
+          screwPanelVisible = e.target.checked;
+          showScrewTrackerPanel(e.target.checked);
+        });
+
+        screwCameraSelect.addEventListener("change", (e) => {
+          setYoloCamera(e.target.value);
+        });
+
+        resetScrewBtn.addEventListener("click", () => {
+          resetScrewSequence();
+        });
+
+        // Mode selector removed - always uses 3D tracking
 
         // Hide loading overlay
         loadingOverlay.classList.add("hidden");

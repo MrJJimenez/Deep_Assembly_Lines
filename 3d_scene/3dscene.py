@@ -29,7 +29,7 @@ except ImportError:
 # =============================================================================
 
 # Camera recording directory
-RECORDING_DIR = "data/wrong5"
+RECORDING_DIR = "data/recording_10"
 CALIBRATION_FILE = "data/cams_calibrations.yml"
 
 # Camera to run YOLO on
@@ -142,7 +142,7 @@ class SyncedVideoManager:
         # YOLO state
         self.yolo_detector = None  # YOLODetector instance
         self.yolo_camera_id = None
-        self.yolo_inference_interval = 15  # Run YOLO every N frames
+        self.yolo_inference_interval = 3  # Run YOLO every N frames
         self.yolo_inference_counter = 0
         self.cached_yolo_results = None
         # Multi-camera YOLO for LSTM fusion

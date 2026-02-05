@@ -705,12 +705,6 @@
       <!-- Screw Sequence Tracking Controls -->
       <div class="panel-title" style="margin-top: 15px">Screw Sequence</div>
       <div class="control-row">
-        <span class="control-label">Track Camera</span>
-        <select id="screwCameraSelect" style="background: #2a2a35; color: #ffffff; border: 1px solid #555; padding: 4px 8px; border-radius: 4px; font-size: 11px; min-width: 130px; cursor: pointer;">
-          <option value="">Loading...</option>
-        </select>
-      </div>
-      <div class="control-row">
         <label class="control-label" for="screwTrackingEnabled" style="cursor: pointer">
           <input
             type="checkbox"
@@ -2159,7 +2153,6 @@
       // DOM elements for screw tracking (sidebar panel)
       const screwTrackingEnabledCheckbox = document.getElementById("screwTrackingEnabled");
       const screwPanelEnabledCheckbox = document.getElementById("screwPanelEnabled");
-      const screwCameraSelect = document.getElementById("screwCameraSelect");
       const screwModeSelect = document.getElementById("screwModeSelect");
       const screwTrackingStatusEl = document.getElementById("screwTrackingStatus");
       const screwStepEl = document.getElementById("screwStep");
@@ -2194,58 +2187,6 @@
         'bottom_right': 'BR',
         'top_left': 'TL'
       };
-
-      // Populate camera dropdown for screw tracking
-      async function populateScrewCameraSelect(cameras, currentCameraId) {
-        screwCameraSelect.innerHTML = '';
-        // cameras can be array of strings or array of objects with id
-        cameras.forEach(cam => {
-          const camId = typeof cam === 'string' ? cam : cam.id;
-          const option = document.createElement('option');
-          option.value = camId;
-          // Add "(best)" label to the recommended tracking camera
-          option.textContent = camId === '137322071489' ? `${camId} (best)` : camId;
-          option.style.color = '#ffffff';
-          option.style.backgroundColor = '#2a2a35';
-          if (camId === currentCameraId) {
-            option.selected = true;
-          }
-          screwCameraSelect.appendChild(option);
-        });
-        console.log('[Screw] Camera dropdown populated with', cameras.length, 'cameras, current:', currentCameraId);
-      }
-
-      // Get current YOLO camera
-      async function getYoloCamera() {
-        try {
-          const response = await fetch("/api/yolo/camera");
-          const data = await response.json();
-          return data.camera_id;
-        } catch (error) {
-          console.error("[Screw] Failed to get YOLO camera:", error);
-          return null;
-        }
-      }
-
-      // Set YOLO camera for screw tracking
-      async function setYoloCamera(cameraId) {
-        try {
-          const response = await fetch("/api/yolo/camera", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ camera_id: cameraId }),
-          });
-          const result = await response.json();
-          if (result.success) {
-            console.log(`[Screw] Switched tracking to camera ${cameraId}`);
-            updateScrewStatus(); // Refresh status
-          } else {
-            console.error("[Screw] Failed to switch camera:", result.error);
-          }
-        } catch (error) {
-          console.error("[Screw] Failed to set YOLO camera:", error);
-        }
-      }
 
       // Update screw sequence UI
       function updateScrewSequenceUI(status) {
@@ -2938,10 +2879,6 @@
 
         console.log("Available cameras:", availableCameras);
 
-        // Populate screw camera dropdown and get current YOLO camera
-        const currentYoloCamera = await getYoloCamera();
-        populateScrewCameraSelect(availableCameras, currentYoloCamera);
-
         // Load GLB scene model (after calibration so we can position it)
         try {
           await loadGLBScene();
@@ -3022,10 +2959,6 @@
         screwPanelEnabledCheckbox.addEventListener("change", (e) => {
           screwPanelVisible = e.target.checked;
           showScrewTrackerPanel(e.target.checked);
-        });
-
-        screwCameraSelect.addEventListener("change", (e) => {
-          setYoloCamera(e.target.value);
         });
 
         resetScrewBtn.addEventListener("click", () => {

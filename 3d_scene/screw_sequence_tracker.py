@@ -111,10 +111,10 @@ class ScrewSequenceTracker:
     SCREWING_DISTANCE = 7.0  # cm - tool is actively screwing
 
     # Time thresholds
-    TIME_TO_TIGHTEN = 1.5  # seconds - time tool must be near to count as tightened
+    TIME_TO_TIGHTEN = 1.2  # seconds - time tool must be near to count as tightened
 
     # Frame-based thresholds (for 3D tracking at ~30fps)
-    FRAMES_TO_COMPLETE = 40  # ~1.3 seconds at 30fps
+    FRAMES_TO_COMPLETE = 15
 
     def __init__(self):
         """Initialize the screw sequence tracker."""

@@ -1,6 +1,6 @@
 # Human Activity Understanding - Screw Assembly Tracking
 
-3D scene visualization system that tracks a Batteries Screw assembly task using multi-camera recordings, DOPE pose estimation,YOLOv11 segmentation, and VGGT for 3D Scene reconstruction
+3D scene visualization system that tracks a Batteries Screw assembly task using multi-camera recordings, DOPE pose estimation, YOLOv11 segmentation and VGGT for 3D Scene reconstruction
 
 ## Installation
 

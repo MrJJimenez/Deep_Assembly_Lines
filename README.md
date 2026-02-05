@@ -83,7 +83,9 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## Acknowledgments
 
-This project uses the following research works:
+This project was developed as part of the **Practical Laboratory: Human Activity Understanding** at the **Technical University of Munich (TUM)**.
+
+### Research Works Used
 
 - **DOPE (Deep Object Pose Estimation)** - 6D pose estimation for object detection
   https://github.com/NVlabs/Deep_Object_Pose
@@ -93,8 +95,3 @@ This project uses the following research works:
 
 - **YOLO (You Only Look Once, by Ultralytics)** - state-of-the-art real-time object detection
   https://github.com/ultralytics/ultralytics
-
----
-
-**Course:** Practical Course - Human Activity Understanding  
-**Institution:** Technical University of Munich (TUM)

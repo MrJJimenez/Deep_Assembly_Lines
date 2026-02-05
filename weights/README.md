@@ -9,6 +9,8 @@ Simply click these links and download through your browser:
 - **dope_tool.pth** (192MB): [Download from Google Drive](https://drive.google.com/file/d/1HMy5vxv6p16uUAizrhmbJ9WUcKdfwIT-/view?usp=sharing)
 - **dope_case.pth** (192MB): [Download from Google Drive](https://drive.google.com/file/d/1JG4Q1yHxV2wXCAzWjFcfA8et9e-ZU6LY/view?usp=sharing)
 
+- **vggt.pt** (5GB) [Download from Google Drive](https://drive.google.com/file/d/10owyM4KWWeb7UwJFIfUmjKB9En6XLMul/view?usp=drive_link)
+
 After downloading, place both files in the `weights/` directory.
 
 ### Method 2: Using gdown (Command-line)
@@ -29,7 +31,7 @@ gdown 1HMy5vxv6p16uUAizrhmbJ9WUcKdfwIT-
 gdown 1JG4Q1yHxV2wXCAzWjFcfA8et9e-ZU6LY
 
 # Download vggt.pt
-gdown 1VWe6BaP8IcKT45JRxjEb3XZJnIACd1BC
+gdown 10owyM4KWWeb7UwJFIfUmjKB9En6XLMul
 ```
 
 **Note**: Regular `curl` or `wget` commands don't work well with large Google Drive files due to virus scan warnings. Use `gdown` or download manually.

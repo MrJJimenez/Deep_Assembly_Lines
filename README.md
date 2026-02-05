@@ -83,7 +83,12 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## Acknowledgments
 
-This project was developed as part of the **Practical Laboratory: Human Activity Understanding** at the **Technical University of Munich (TUM)**.
+This project was developed as part of the **Practical Laboratory: Human Activity Understanding** at the **Technical University of Munich (TUM)**, Chair of Media Technology, supervised by Prof. Dr.-Ing. Eckehard Steinbach.
+
+### Huge Thanks to My Teammates
+
+- **Lucía Balsa Picado** ([luciabalsa](https://github.com/luciabalsapicado))
+- **Ioannis Papadongonas** ([ipapadongonas](https://github.com/GiannosP14))
 
 ### Research Works Used
 

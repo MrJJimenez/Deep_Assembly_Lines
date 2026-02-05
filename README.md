@@ -39,7 +39,20 @@ python 3d_scene/3dscene.py
 
 Open your browser at **http://localhost:8085**
 
+## Acknowledgments
+
+This project uses the following research works:
+
+- **DOPE (Deep Object Pose Estimation)** - 6D pose estimation for object detection  
+  https://github.com/NVlabs/Deep_Object_Pose
+
+- **VGGT (Visual Geometry Grounded Transformer)** - 3D scene reconstruction  
+  https://vgg-t.github.io/
+
 ---
 
-**Course:** Practical Course - Human Activity Understanding
+**Course:** Practical Course - Human Activity Understanding  
 **Institution:** Technical University of Munich (TUM)
+
+
+

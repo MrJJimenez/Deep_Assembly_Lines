@@ -69,6 +69,11 @@ Open your browser at **http://localhost:8085**
 │   └── vggt/                  # VGGT point cloud
 │
 └── yolov11_finetuned/         # YOLOv11 training & testing
+```
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ## Acknowledgments
 
@@ -82,9 +87,5 @@ This project uses the following research works:
 
 ---
 
-**Course:** Practical Course - Human Activity Understanding
+**Course:** Practical Course - Human Activity Understanding  
 **Institution:** Technical University of Munich (TUM)
-
-
-
-```
